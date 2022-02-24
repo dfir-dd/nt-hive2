@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 binread = "2.2"
+displaydoc = "0.2"
