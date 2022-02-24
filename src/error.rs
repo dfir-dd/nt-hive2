@@ -71,6 +71,8 @@ pub enum NtHiveError {
     IOError {msg: String },
     /// indicates that an unexpected IndexRoot has been read
     UnexpectedIndexRoot,
+    /// Unable to decode String
+    StringEncodingError,
 }
 
 

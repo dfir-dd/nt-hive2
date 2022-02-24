@@ -115,7 +115,6 @@ struct HiveBin {
 }
 
 #[derive(BinRead)]
-#[repr(packed)]
 struct CellHeader {
     // The cell size must be a multiple of 8 bytes
     #[br(assert(*size%8 == 0, NtHiveError::InvalidSizeFieldAlignment{
@@ -134,6 +133,9 @@ mod tests {
     fn enum_subkeys() {
         let testhive = crate::helpers::tests::testhive_vec();
         let hive = Hive::new(io::Cursor::new(testhive)).unwrap();
-        assert!(hive.enum_subkeys(|_k| Ok(())).is_ok());
+        assert!(hive.enum_subkeys(|k| {
+            assert_eq!(k.name().unwrap(), "ROOT");
+            Ok(())
+        }).is_ok());
     }
 }
