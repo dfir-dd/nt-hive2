@@ -130,7 +130,7 @@ mod tests {
     use std::io;
 
     #[test]
-    fn enum_subkeys() {
+    fn load_hive() {
         let testhive = crate::helpers::tests::testhive_vec();
         let hive = Hive::new(io::Cursor::new(testhive)).unwrap();
         assert!(hive.enum_subkeys(|k| {

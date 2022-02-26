@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::borrow::Cow;
 use std::io::Read;
 use std::io::Seek;
@@ -6,6 +7,7 @@ use std::ops::Deref;
 use crate::Hive;
 use crate::NtHiveError;
 use crate::Result;
+use crate::subkeys_list::*;
 use binread::BinResult;
 use binread::ReadOptions;
 use binread::{BinRead, BinReaderExt};
@@ -41,7 +43,7 @@ pub(crate) struct KeyNodeHeader {
     key_name_string: Vec<u8>,
 }
 
-fn parse_node_flags<R: Read + Seek>(reader: &mut R, ro: &ReadOptions, _: ())
+fn parse_node_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
 -> BinResult<KeyNodeFlags>
 {
     let raw_value: u16 = reader.read_le()?;
@@ -73,10 +75,17 @@ bitflags! {
     }
 }
 
+pub enum NodeType {
+    
+}
+
+pub trait Node {
+
+}
 
 pub struct KeyNode<H, B>
 where
-    H: Deref<Target = Hive<B>>,
+    H: Deref<Target = Hive<B>> + Copy,
     B: BinReaderExt,
 {
     header: KeyNodeHeader,
@@ -85,12 +94,12 @@ where
 
 impl<H, B> KeyNode<H, B>
 where
-    H: Deref<Target = Hive<B>>,
+    H: Deref<Target = Hive<B>> + Copy,
     B: BinReaderExt,
 {
     pub fn from_cell_offset(hive: H, offset: u32) -> Result<Self> {
         hive.seek_to_cell_offset(offset)?;
-        let header: KeyNodeHeader = hive.data.borrow_mut().read_le().unwrap();
+        let header: KeyNodeHeader = hive.data.borrow_mut().read_le()?;
         Ok(Self { header, hive })
     }
 
@@ -109,4 +118,51 @@ where
             Ok(cow)
         }
     }
+
+    pub fn subkeys<'a>(&'a self) -> Result<Vec<KeyNode<H, B>>> {
+        let offset = self.header.subkeys_list_offset;
+        self.hive.seek_to_cell_offset(offset)?;
+        let subkeys_list: SubKeysList = self.hive.data.borrow_mut().read_le()?;
+
+        if subkeys_list.is_index_root() {
+            let subkeys: Result<Vec<_>>= subkeys_list.into_offsets().map(|offset| {
+                let subsubkeys_list = Self::from_cell_offset(self.hive, offset)?;
+                subsubkeys_list.subkeys()
+            }).collect();
+            
+            match subkeys {
+                Err(why) => return Err(why),
+                Ok(x) => Ok(x.into_iter().flatten().collect::<Vec<KeyNode<H, B>>>())
+            }
+        } else {
+            let subkeys: Result<Vec<_>> = subkeys_list.into_offsets().map(|offset| {
+                self.hive.seek_to_cell_offset(offset)?;
+                let nk = Self::from_cell_offset(self.hive, offset)?;
+                Ok(nk)
+            }).collect();
+            subkeys
+        }
+    }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    use std::io;
+
+    #[test]
+    fn enum_subkeys() {
+        let testhive = crate::helpers::tests::testhive_vec();
+        let hive = Hive::new(io::Cursor::new(testhive)).unwrap();
+        assert!(hive.enum_subkeys(|k| {
+            assert_eq!(k.name().unwrap(), "ROOT");
+
+            for sk in k.subkeys().unwrap() {
+                println!("{}", sk.name().unwrap());
+            }
+
+            Ok(())
+        }).is_ok());
+    }
+}
+
