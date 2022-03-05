@@ -1,17 +1,6 @@
 // Copyright 2019-2021 Colin Finck <colin@reactos.org>
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-use core::ops::Range;
-
-macro_rules! iter_try {
-    ($e:expr) => {
-        match $e {
-            Ok(x) => x,
-            Err(e) => return Some(Err(e)),
-        }
-    };
-}
-
 #[cfg(test)]
 pub mod tests {
     use std::fs::File;

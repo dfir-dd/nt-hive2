@@ -1,8 +1,7 @@
 use std::io::{SeekFrom};
 use std::cell::RefCell;
 
-use crate::nk;
-use crate::nk::{KeyNode, KeyNodeHeader};
+use crate::nk::KeyNode;
 use crate::{NtHiveError, Result};
 use binread::{BinRead, BinReaderExt, PosValue};
 
@@ -12,8 +11,13 @@ where
 {
     pub(crate) data: RefCell<B>,
     base_block: HiveBaseBlock,
-    data_offset: u64,
+    data_offset: u32,
 }
+
+#[derive(BinRead, Debug, Clone, Copy)]
+pub struct Offset (
+    pub u32
+);
 
 impl<B> Hive<B>
 where
@@ -22,7 +26,7 @@ where
     pub fn new(mut data: B) -> Result<Self> {
         data.seek(SeekFrom::Start(0))?;
         let base_block: HiveBaseBlock = data.read_le().unwrap();
-        let data_offset = data.stream_position()?;
+        let data_offset = data.stream_position()? as u32;
 
         Ok(Self {
             data: RefCell::new(data),
@@ -37,32 +41,35 @@ where
         Ok(())
     }
 
-    fn root_key_node(&self) -> Result<KeyNode<&Self, B>> {
+    pub fn root_key_node(&self) -> Result<KeyNode<&Self, B>> {
         KeyNode::from_cell_offset(self, self.base_block.root_cell_offset)
     }
 
-    pub fn seek_to_cell_offset(&self, data_offset: u32) -> Result<usize> {
+    pub fn seek_to_cell_offset(&self, data_offset: Offset) -> Result<Offset> {
         // Only valid data offsets are accepted here.
-        assert!(data_offset != u32::MAX);
+        assert!(data_offset.0 != u32::MAX);
 
-        // Accept only u32 data offsets, but convert them into usize right away for
-        // slice range operations and fearless calculations.
-        let data_offset = data_offset as usize;
+        let data_offset = self.data_offset + data_offset.0 as u32;
 
-        self.data.borrow_mut().seek(SeekFrom::Start(self.data_offset + data_offset as u64))?;
+        log::debug!("seeking to cell offset: 0x{:x} ({})", data_offset, data_offset);
+
+        self.data.borrow_mut().seek(SeekFrom::Start(data_offset as u64))?;
         let header: CellHeader = self.data.borrow_mut().read_le()?;
 
-        let cell_data_offset = self.data.borrow_mut().stream_position()? as usize;
+        let cell_data_offset = self.data.borrow_mut().stream_position()? as u32;
 
         // A cell with size > 0 is unallocated and shouldn't be processed any further by us.
         if *header.size > 0 {
             return Err(NtHiveError::UnallocatedCell {
-                offset: data_offset,
+                offset: data_offset as usize,
                 size: *header.size,
             });
         }
+        log::debug!("offset after cell header is: 0x{:x} ({})", cell_data_offset, cell_data_offset);
 
-        Ok(cell_data_offset)
+        // subtract self.data_offset, so that the returned offset can be used
+        // again together with this function
+        Ok(Offset(cell_data_offset - self.data_offset))
     }
 }
 
@@ -87,7 +94,7 @@ struct HiveBaseBlock {
 
     #[br(assert(file_format==1))]
     file_format: u32,
-    root_cell_offset: u32,
+    root_cell_offset: Offset,
 
     #[br(assert(data_size%4096 == 0))]
     data_size: u32,
@@ -101,7 +108,7 @@ struct HiveBaseBlock {
     boot_type: u32,
     boot_recover: u32,
 }
-
+/*
 #[derive(BinRead)]
 #[br(magic = b"hbin")]
 struct HiveBin {
@@ -113,6 +120,7 @@ struct HiveBin {
     timestamp: u64,
     spare: u32,
 }
+*/
 
 #[derive(BinRead)]
 struct CellHeader {

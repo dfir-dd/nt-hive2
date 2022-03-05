@@ -1,9 +1,12 @@
 use binread::{derive_binread, BinRead};
 
+use crate::Offset;
+
 /// On-Disk Structure of a Subkeys List header.
 /// This is common for all subkey types (Fast Leaf, Hash Leaf, Index Leaf, Index Root).
 #[derive_binread]
 #[br(little)]
+#[derive(Debug)]
 pub(crate) enum SubKeysList {
 
     #[br(magic = b"li")] IndexLeaf{
@@ -40,7 +43,8 @@ pub(crate) enum SubKeysList {
 }
 
 impl SubKeysList {
-    pub fn offsets<'a>(&'a self) -> Box<dyn Iterator<Item=u32> + 'a> {
+    #[allow(unused)]
+    pub fn offsets<'a>(&'a self) -> Box<dyn Iterator<Item=Offset> + 'a> {
         match self {
             SubKeysList::IndexLeaf { items} => Box::new(items.iter().map(|i| i.key_node_offset)),
             SubKeysList::FastLeaf { items } => Box::new(items.iter().map(|i| i.key_node_offset)),
@@ -49,7 +53,7 @@ impl SubKeysList {
         }
     }
 
-    pub fn into_offsets<'a>(self) -> Box<dyn Iterator<Item=u32>> {
+    pub fn into_offsets<'a>(self) -> Box<dyn Iterator<Item=Offset>> {
         match self {
             SubKeysList::IndexLeaf { items} => Box::new(items.into_iter().map(|i| i.key_node_offset)),
             SubKeysList::FastLeaf { items } => Box::new(items.into_iter().map(|i| i.key_node_offset)),
@@ -59,28 +63,32 @@ impl SubKeysList {
     }
 
     pub fn is_index_root(&self) -> bool {
-        matches!(self, SubKeysList::IndexRoot { items })
+        matches!(self, SubKeysList::IndexRoot { items: _ })
     }
 }
 
-#[derive(BinRead)]
+#[derive(BinRead, Debug)]
 pub(crate) struct HashLeafItem {
-    key_node_offset: u32,
+    key_node_offset: Offset,
+
+    #[allow(unused)]
     name_hash: [u8; 4],
 }
 
-#[derive(BinRead)]
+#[derive(BinRead, Debug)]
 pub(crate) struct FastLeafItem {
-    key_node_offset: u32,
+    key_node_offset: Offset,
+
+    #[allow(unused)]
     name_hint: [u8; 4],
 }
 
-#[derive(BinRead)]
+#[derive(BinRead, Debug)]
 pub(crate) struct IndexRootListElement {
-    subkeys_list_offset: u32
+    subkeys_list_offset: Offset
 }
 
-#[derive(BinRead)]
+#[derive(BinRead, Debug)]
 pub(crate) struct IndexLeafItem {
-    key_node_offset: u32,
+    key_node_offset: Offset,
 }

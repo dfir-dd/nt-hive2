@@ -82,16 +82,16 @@ impl std::error::Error for NtHiveError {}
 impl From<binread::Error> for NtHiveError {
     fn from(error: binread::Error) -> Self {
         match error {
-            binread::Error::Custom { pos, err } =>
+            binread::Error::Custom { pos: _, err } =>
                 match err.downcast_ref::<NtHiveError>() {
                     None => panic!("unsupported error type"),
                     Some(e) => e.clone()
                 }
-            binread::Error::BadMagic { pos, found } => Self::BinreadError{msg: format!("invalid magic at {}", pos)},
+            binread::Error::BadMagic { pos, found: _ } => Self::BinreadError{msg: format!("invalid magic at {}", pos)},
             binread::Error::AssertFail { pos, message } => Self::BinreadError{msg: format!("assertion failed at at {}: {}", pos, message)},
             binread::Error::Io(why) => Self::BinreadError{msg: format!("IO error: {:?}", why)},
             binread::Error::NoVariantMatch { pos }  => Self::BinreadError{msg: format!("no variant match at {}", pos)},
-            binread::Error::EnumErrors { pos, variant_errors }  => Self::BinreadError{msg: format!("enum errors at {}", pos)},
+            binread::Error::EnumErrors { pos, variant_errors: _ }  => Self::BinreadError{msg: format!("enum errors at {}", pos)},
             err => Self::BinreadError{msg: format!("binread error: {:?}", err)}
         }
     }

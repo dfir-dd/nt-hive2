@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::borrow::Cow;
 use std::io::Read;
 use std::io::Seek;
@@ -8,11 +7,13 @@ use crate::Hive;
 use crate::NtHiveError;
 use crate::Result;
 use crate::subkeys_list::*;
+use crate::Offset;
 use binread::BinResult;
 use binread::ReadOptions;
 use binread::{BinRead, BinReaderExt};
 use bitflags::bitflags;
 use encoding_rs::{ISO_8859_15, UTF_16LE};
+use chrono::{DateTime, Utc};
 
 #[allow(dead_code)]
 #[derive(BinRead)]
@@ -25,7 +26,7 @@ pub(crate) struct KeyNodeHeader {
     parent: u32,
     subkey_count: u32,
     volatile_subkey_count: u32,
-    subkeys_list_offset: u32,
+    subkeys_list_offset: Offset,
     volatile_subkeys_list_offset: u32,
     key_values_count: u32,
     key_values_list_offset: u32,
@@ -75,14 +76,6 @@ bitflags! {
     }
 }
 
-pub enum NodeType {
-    
-}
-
-pub trait Node {
-
-}
-
 pub struct KeyNode<H, B>
 where
     H: Deref<Target = Hive<B>> + Copy,
@@ -97,8 +90,9 @@ where
     H: Deref<Target = Hive<B>> + Copy,
     B: BinReaderExt,
 {
-    pub fn from_cell_offset(hive: H, offset: u32) -> Result<Self> {
-        hive.seek_to_cell_offset(offset)?;
+    pub fn from_cell_offset(hive: H, offset: Offset) -> Result<Self> {
+        let data_offset = hive.seek_to_cell_offset(offset)?;
+        log::debug!("reading KeyNodeHeader from {:?}", data_offset);
         let header: KeyNodeHeader = hive.data.borrow_mut().read_le()?;
         Ok(Self { header, hive })
     }
@@ -121,20 +115,46 @@ where
 
     pub fn subkeys<'a>(&'a self) -> Result<Vec<KeyNode<H, B>>> {
         let offset = self.header.subkeys_list_offset;
-        self.hive.seek_to_cell_offset(offset)?;
+
+        if offset.0 == u32::MAX{
+            return Ok(Vec::new());
+        }
+
+        let data_offset = self.hive.seek_to_cell_offset(offset)?;
+
+        log::debug!("reading SubKeysList list from 0x{:x} ({})", data_offset.0, data_offset.0);
         let subkeys_list: SubKeysList = self.hive.data.borrow_mut().read_le()?;
 
+        log::debug!("SubKeyList is of type '{}'", match subkeys_list {
+            SubKeysList::IndexLeaf { items: _ } => "IndexLeaf",
+            SubKeysList::FastLeaf { items: _ } => "FastLeaf",
+            SubKeysList::HashLeaf { items: _ } => "HashLeaf",
+            SubKeysList::IndexRoot { items: _ } => "IndexRoot",
+        });
+
+        log::debug!("{:?}", subkeys_list);
+
         if subkeys_list.is_index_root() {
-            let subkeys: Result<Vec<_>>= subkeys_list.into_offsets().map(|offset| {
-                let subsubkeys_list = Self::from_cell_offset(self.hive, offset)?;
-                subsubkeys_list.subkeys()
+            log::debug!("reading indirect subkey lists");
+            let subkeys: Result<Vec<_>>= subkeys_list.into_offsets().map(|o| {
+                self.hive.seek_to_cell_offset(o)?;
+                let subsubkeys_list: SubKeysList = self.hive.data.borrow_mut().read_le()?;
+                assert!(!subsubkeys_list.is_index_root());
+
+                let subkeys: Result<Vec<_>> = subsubkeys_list.into_offsets().map(|o2| {
+                    self.hive.seek_to_cell_offset(o2)?;
+                    let nk = Self::from_cell_offset(self.hive, o2)?;
+                    Ok(nk)
+                }).collect();
+                subkeys
             }).collect();
-            
+
             match subkeys {
-                Err(why) => return Err(why),
-                Ok(x) => Ok(x.into_iter().flatten().collect::<Vec<KeyNode<H, B>>>())
+                Err(why) => Err(why),
+                Ok(sk) => Ok(sk.into_iter().flatten().collect())
             }
         } else {
+            log::debug!("reading single subkey list");
             let subkeys: Result<Vec<_>> = subkeys_list.into_offsets().map(|offset| {
                 self.hive.seek_to_cell_offset(offset)?;
                 let nk = Self::from_cell_offset(self.hive, offset)?;
