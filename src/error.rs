@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, num::TryFromIntError};
 use displaydoc::Display;
 
 pub type Result<T, E = NtHiveError> = core::result::Result<T, E>;
@@ -73,6 +73,8 @@ pub enum NtHiveError {
     UnexpectedIndexRoot,
     /// Unable to decode String
     StringEncodingError,
+    /// Unable to convert integer into offset
+    TryFromIntError
 }
 
 
@@ -100,5 +102,11 @@ impl From<binread::Error> for NtHiveError {
 impl From<io::Error> for NtHiveError {
     fn from(error: io::Error) -> Self {
         Self::BinreadError{msg: format!("IO error: {:?}", error)}
+    }
+}
+
+impl From<TryFromIntError> for NtHiveError {
+    fn from(_: TryFromIntError) -> Self {
+        Self::TryFromIntError{}
     }
 }

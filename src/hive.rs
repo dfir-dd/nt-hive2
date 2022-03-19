@@ -2,6 +2,7 @@ use std::io::{SeekFrom};
 use std::cell::RefCell;
 
 use crate::nk::KeyNode;
+use crate::traits::FromHiveBinOffset;
 use crate::{NtHiveError, Result};
 use binread::{BinRead, BinReaderExt, PosValue};
 
@@ -42,9 +43,15 @@ where
     }
 
     pub fn root_key_node(&self) -> Result<KeyNode<&Self, B>> {
-        KeyNode::from_cell_offset(self, self.base_block.root_cell_offset)
+        KeyNode::from_hive_bin_offset(self, self.base_block.root_cell_offset)
     }
 
+    /// seeking to a given offset relative to the hive bins data AND read a cell header at this position.
+    /// Reading the cell header moves the read cursor forward by the size of the cell header.
+    /// 
+    /// This function returns the new cursor position relative
+    /// to the hive bins data 
+    /// 
     pub fn seek_to_cell_offset(&self, data_offset: Offset) -> Result<Offset> {
         // Only valid data offsets are accepted here.
         assert!(data_offset.0 != u32::MAX);
@@ -70,6 +77,28 @@ where
         // subtract self.data_offset, so that the returned offset can be used
         // again together with this function
         Ok(Offset(cell_data_offset - self.data_offset))
+    }
+
+    /// seeking to a given offset relative to the hove bins data.
+    /// 
+    /// This function returns the new cursor position relative
+    /// to the hive bins data 
+    /// 
+    pub fn seek_to_offset(&self, data_offset: Offset) -> Result<Offset> {
+        // Only valid data offsets are accepted here.
+        assert!(data_offset.0 != u32::MAX);
+
+        let data_offset = self.data_offset + data_offset.0 as u32;
+
+        log::debug!("seeking to offset: 0x{:x} ({})", data_offset, data_offset);
+        let new_data_offset = self.data.borrow_mut().seek(SeekFrom::Start(data_offset as u64))?;
+        let new_data_offset: u32 = new_data_offset.try_into()?;
+
+        assert_eq!(data_offset, new_data_offset);
+
+        // subtract self.data_offset, so that the returned offset can be used
+        // again together with this function
+        Ok(Offset(new_data_offset - self.data_offset))
     }
 }
 

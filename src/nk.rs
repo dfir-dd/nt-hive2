@@ -8,12 +8,14 @@ use crate::NtHiveError;
 use crate::Result;
 use crate::subkeys_list::*;
 use crate::Offset;
+use crate::traits::FromHiveBinOffset;
+use crate::vk::KeyValueList;
+use crate::vk::{KeyValue, KeyValueHeader};
 use binread::BinResult;
 use binread::ReadOptions;
 use binread::{BinRead, BinReaderExt};
 use bitflags::bitflags;
 use encoding_rs::{ISO_8859_15, UTF_16LE};
-use chrono::{DateTime, Utc};
 
 #[allow(dead_code)]
 #[derive(BinRead)]
@@ -22,16 +24,16 @@ pub(crate) struct KeyNodeHeader {
     #[br(parse_with=parse_node_flags)]
     flags: KeyNodeFlags,
     timestamp: u64,
-    spare: u32,
+    access_bits: u32,
     parent: u32,
     subkey_count: u32,
     volatile_subkey_count: u32,
     subkeys_list_offset: Offset,
-    volatile_subkeys_list_offset: u32,
+    volatile_subkeys_list_offset: Offset,
     key_values_count: u32,
-    key_values_list_offset: u32,
-    key_security_offset: u32,
-    class_name_offset: u32,
+    key_values_list_offset: Offset,
+    key_security_offset: Offset,
+    class_name_offset: Offset,
     max_subkey_name: u32,
     max_subkey_class_name: u32,
     max_value_name: u32,
@@ -85,18 +87,24 @@ where
     hive: H,
 }
 
-impl<H, B> KeyNode<H, B>
+impl<H, B> FromHiveBinOffset<H, B> for KeyNode<H, B>
 where
     H: Deref<Target = Hive<B>> + Copy,
     B: BinReaderExt,
 {
-    pub fn from_cell_offset(hive: H, offset: Offset) -> Result<Self> {
+    fn from_hive_bin_offset(hive: H, offset: Offset) -> Result<Self> {
         let data_offset = hive.seek_to_cell_offset(offset)?;
         log::debug!("reading KeyNodeHeader from {:?}", data_offset);
         let header: KeyNodeHeader = hive.data.borrow_mut().read_le()?;
         Ok(Self { header, hive })
     }
+}
 
+impl<H, B> KeyNode<H, B>
+where
+    H: Deref<Target = Hive<B>> + Copy,
+    B: BinReaderExt,
+{
     /// Returns the name of this Key Node.
     pub fn name(&self) -> Result<Cow<str>> {
         let (cow, _, had_errors) = 
@@ -143,7 +151,7 @@ where
 
                 let subkeys: Result<Vec<_>> = subsubkeys_list.into_offsets().map(|o2| {
                     self.hive.seek_to_cell_offset(o2)?;
-                    let nk = Self::from_cell_offset(self.hive, o2)?;
+                    let nk = Self::from_hive_bin_offset(self.hive, o2)?;
                     Ok(nk)
                 }).collect();
                 subkeys
@@ -157,11 +165,28 @@ where
             log::debug!("reading single subkey list");
             let subkeys: Result<Vec<_>> = subkeys_list.into_offsets().map(|offset| {
                 self.hive.seek_to_cell_offset(offset)?;
-                let nk = Self::from_cell_offset(self.hive, offset)?;
+                let nk = Self::from_hive_bin_offset(self.hive, offset)?;
                 Ok(nk)
             }).collect();
             subkeys
         }
+    }
+
+    /// returns a list of all values of this very Key Node
+    pub fn values(&self) -> Result<Vec<KeyValue<H, B>>> {
+        let mut result = Vec::with_capacity(self.header.key_values_count as usize);
+        if self.header.key_values_count > 0 && self.header.key_values_list_offset.0 != u32::MAX {
+            self.hive.seek_to_cell_offset(self.header.key_values_list_offset)?;
+
+            log::debug!("reading KeyValueList with {} entries", self.header.key_values_count);
+            let kv_list:KeyValueList = self.hive.data.borrow_mut().read_le_args((self.header.key_values_count,))?;
+
+            for offset in kv_list.key_value_offsets.iter() {
+                log::debug!("found offset at {} (0x{:08x})", offset.0, offset.0);
+                result.push(KeyValue::from_cell_offset(self.hive, *offset)?);
+            }
+        }
+        Ok(result)
     }
 }
 

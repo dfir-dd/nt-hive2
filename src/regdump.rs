@@ -1,6 +1,4 @@
-use log::LevelFilter;
 use nt_hive2::*;
-use std::borrow::Cow;
 use std::fs::File;
 use std::io::{Read, Cursor, Seek};
 
@@ -29,7 +27,7 @@ fn print_key<RS>(keynode: &KeyNode<&Hive<RS>, RS>, path: &mut Vec<String>) -> Re
 
 fn print_values<RS>(keynode: &KeyNode<&Hive<RS>, RS>) -> Result<()> where RS: Read + Seek {
     for value in keynode.values()? {
-        println!("{}", value.header.)
+        println!("{}", value.name()?);
     }
     Ok(())
 }
