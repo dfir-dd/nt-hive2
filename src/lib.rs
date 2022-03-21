@@ -6,6 +6,9 @@ pub use error::*;
 
 mod traits;
 
+mod cell;
+pub use cell::*;
+
 pub mod helpers;
 mod nk;
 mod vk;

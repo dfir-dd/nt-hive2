@@ -3,6 +3,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::ops::Deref;
 
+use crate::Cell;
 use crate::Hive;
 use crate::NtHiveError;
 use crate::Result;
@@ -93,9 +94,9 @@ where
     B: BinReaderExt,
 {
     fn from_hive_bin_offset(hive: H, offset: Offset) -> Result<Self> {
-        let data_offset = hive.seek_to_cell_offset(offset)?;
-        log::debug!("reading KeyNodeHeader from {:?}", data_offset);
-        let header: KeyNodeHeader = hive.data.borrow_mut().read_le()?;
+        log::debug!("reading KeyNodeHeader from {:?}", offset);
+        let header_cell: Cell<KeyNodeHeader> = Cell::from_hive_bin_offset(hive, offset)?;
+        let header = header_cell.into_data();
         Ok(Self { header, hive })
     }
 }
