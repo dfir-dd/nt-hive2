@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::io::Read;
 use std::io::Seek;
-use std::ops::DerefMut;
 
 use crate::Cell;
 use crate::Hive;
@@ -9,7 +8,6 @@ use crate::NtHiveError;
 use crate::Result;
 use crate::subkeys_list::*;
 use crate::Offset;
-use crate::traits::FromOffset;
 use crate::vk::KeyValueList;
 use crate::vk::KeyValue;
 use binread::BinResult;
@@ -107,10 +105,10 @@ impl KeyNode
         let subkeys_list: SubKeysList = hive.read_structure(offset)?;
 
         log::debug!("SubKeyList is of type '{}'", match subkeys_list {
-            SubKeysList::IndexLeaf { items: _ } => "IndexLeaf",
-            SubKeysList::FastLeaf { items: _ } => "FastLeaf",
-            SubKeysList::HashLeaf { items: _ } => "HashLeaf",
-            SubKeysList::IndexRoot { items: _ } => "IndexRoot",
+            SubKeysList::IndexLeaf { items: _, ..} => "IndexLeaf",
+            SubKeysList::FastLeaf { items: _, ..} => "FastLeaf",
+            SubKeysList::HashLeaf { items: _, ..} => "HashLeaf",
+            SubKeysList::IndexRoot { items: _, ..} => "IndexRoot",
         });
 
         log::debug!("{:?}", subkeys_list);

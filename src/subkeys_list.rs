@@ -46,24 +46,24 @@ impl SubKeysList {
     #[allow(unused)]
     pub fn offsets<'a>(&'a self) -> Box<dyn Iterator<Item=Offset> + 'a> {
         match self {
-            SubKeysList::IndexLeaf { items} => Box::new(items.iter().map(|i| i.key_node_offset)),
-            SubKeysList::FastLeaf { items } => Box::new(items.iter().map(|i| i.key_node_offset)),
-            SubKeysList::HashLeaf { items } => Box::new(items.iter().map(|i| i.key_node_offset)),
-            SubKeysList::IndexRoot { items } => Box::new(items.iter().map(|i| i.subkeys_list_offset)),
+            SubKeysList::IndexLeaf { items, ..} => Box::new(items.iter().map(|i| i.key_node_offset)),
+            SubKeysList::FastLeaf { items , ..} => Box::new(items.iter().map(|i| i.key_node_offset)),
+            SubKeysList::HashLeaf { items , ..} => Box::new(items.iter().map(|i| i.key_node_offset)),
+            SubKeysList::IndexRoot { items , ..} => Box::new(items.iter().map(|i| i.subkeys_list_offset)),
         }
     }
 
     pub fn into_offsets<'a>(self) -> Box<dyn Iterator<Item=Offset>> {
         match self {
-            SubKeysList::IndexLeaf { items} => Box::new(items.into_iter().map(|i| i.key_node_offset)),
-            SubKeysList::FastLeaf { items } => Box::new(items.into_iter().map(|i| i.key_node_offset)),
-            SubKeysList::HashLeaf { items } => Box::new(items.into_iter().map(|i| i.key_node_offset)),
-            SubKeysList::IndexRoot { items } => Box::new(items.into_iter().map(|i| i.subkeys_list_offset)),
+            SubKeysList::IndexLeaf { items, ..} => Box::new(items.into_iter().map(|i| i.key_node_offset)),
+            SubKeysList::FastLeaf { items , ..} => Box::new(items.into_iter().map(|i| i.key_node_offset)),
+            SubKeysList::HashLeaf { items , ..} => Box::new(items.into_iter().map(|i| i.key_node_offset)),
+            SubKeysList::IndexRoot { items , ..} => Box::new(items.into_iter().map(|i| i.subkeys_list_offset)),
         }
     }
 
     pub fn is_index_root(&self) -> bool {
-        matches!(self, SubKeysList::IndexRoot { items: _ })
+        matches!(self, SubKeysList::IndexRoot { items: _ , ..})
     }
 }
 

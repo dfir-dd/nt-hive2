@@ -1,11 +1,9 @@
-use std::cell::RefCell;
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
-use std::rc::Rc;
 
 use crate::nk::KeyNode;
 use crate::traits::FromOffset;
-use crate::{Cell, NtHiveError, Result};
-use binread::{BinRead, BinReaderExt, PosValue};
+use crate::{Cell, Result};
+use binread::{BinRead, BinReaderExt};
 
 pub struct Hive<B>
 where
@@ -127,29 +125,6 @@ struct HiveBaseBlock {
     padding_2: Vec<u32>,
     boot_type: u32,
     boot_recover: u32,
-}
-/*
-#[derive(BinRead)]
-#[br(magic = b"hbin")]
-struct HiveBin {
-    offset: u32,
-
-    #[br(assert(size%4096 == 0))]
-    size: u32,
-    reserved: u64,
-    timestamp: u64,
-    spare: u32,
-}
-*/
-
-#[derive(BinRead)]
-struct CellHeader {
-    // The cell size must be a multiple of 8 bytes
-    #[br(assert(*size%8 == 0, NtHiveError::InvalidSizeFieldAlignment{
-        expected_alignment: 8,
-        size: *size as usize,
-        offset: size.pos as usize}))]
-    size: PosValue<i32>,
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
 use std::ops::{DerefMut};
-use binread::{BinReaderExt, BinRead};
+use binread::{BinReaderExt};
 use crate::{Offset, Hive, Result};
 
 pub trait FromOffset<H, B>: Sized

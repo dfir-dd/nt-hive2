@@ -1,15 +1,12 @@
 
 use crate::Cell;
-use crate::Hive;
 use crate::NtHiveError;
 use crate::Result;
 use crate::Offset;
-use crate::traits::FromOffset;
 
 use std::borrow::Cow;
 use std::io::Read;
 use std::io::Seek;
-use std::ops::Deref;
 use bitflags::bitflags;
 use binread::BinResult;
 use binread::ReadOptions;
@@ -59,7 +56,8 @@ bitflags! {
         /// builds of Windows 10 "Redstone 1"), a tombstone value also has the
         /// Data type field set to REG_NONE, the Data size field set to 0, and
         /// the Data offset field set to 0xFFFFFFFF
-        const IsTombstone = 0x0002;
+        #[allow(non_upper_case_globals)]
+        const IS_TOMBSTONE = 0x0002;
     }
 }
 
