@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::io::Read;
 use std::io::Seek;
-use std::ops::Deref;
+use std::ops::DerefMut;
 
 use crate::Cell;
 use crate::Hive;
@@ -9,9 +9,9 @@ use crate::NtHiveError;
 use crate::Result;
 use crate::subkeys_list::*;
 use crate::Offset;
-use crate::traits::FromHiveBinOffset;
+use crate::traits::FromOffset;
 use crate::vk::KeyValueList;
-use crate::vk::{KeyValue, KeyValueHeader};
+use crate::vk::KeyValue;
 use binread::BinResult;
 use binread::ReadOptions;
 use binread::{BinRead, BinReaderExt};
@@ -21,7 +21,7 @@ use encoding_rs::{ISO_8859_15, UTF_16LE};
 #[allow(dead_code)]
 #[derive(BinRead)]
 #[br(magic = b"nk")]
-pub(crate) struct KeyNodeHeader {
+pub struct KeyNode {
     #[br(parse_with=parse_node_flags)]
     flags: KeyNodeFlags,
     timestamp: u64,
@@ -79,40 +79,15 @@ bitflags! {
     }
 }
 
-pub struct KeyNode<H, B>
-where
-    H: Deref<Target = Hive<B>> + Copy,
-    B: BinReaderExt,
-{
-    header: KeyNodeHeader,
-    hive: H,
-}
-
-impl<H, B> FromHiveBinOffset<H, B> for KeyNode<H, B>
-where
-    H: Deref<Target = Hive<B>> + Copy,
-    B: BinReaderExt,
-{
-    fn from_hive_bin_offset(hive: H, offset: Offset) -> Result<Self> {
-        log::debug!("reading KeyNodeHeader from {:?}", offset);
-        let header_cell: Cell<KeyNodeHeader> = Cell::from_hive_bin_offset(hive, offset)?;
-        let header = header_cell.into_data();
-        Ok(Self { header, hive })
-    }
-}
-
-impl<H, B> KeyNode<H, B>
-where
-    H: Deref<Target = Hive<B>> + Copy,
-    B: BinReaderExt,
+impl KeyNode
 {
     /// Returns the name of this Key Node.
     pub fn name(&self) -> Result<Cow<str>> {
         let (cow, _, had_errors) = 
-        if self.header.flags.contains(KeyNodeFlags::KEY_COMP_NAME) {
-            ISO_8859_15.decode(&self.header.key_name_string[..])
+        if self.flags.contains(KeyNodeFlags::KEY_COMP_NAME) {
+            ISO_8859_15.decode(&self.key_name_string[..])
         } else {
-            UTF_16LE.decode(&self.header.key_name_string[..])
+            UTF_16LE.decode(&self.key_name_string[..])
         };
 
         if had_errors {
@@ -122,17 +97,14 @@ where
         }
     }
 
-    pub fn subkeys<'a>(&'a self) -> Result<Vec<KeyNode<H, B>>> {
-        let offset = self.header.subkeys_list_offset;
+    pub fn subkeys<'a, B>(&'a self, hive: &mut Hive<B>) -> Result<Vec<Self>> where B: BinReaderExt{
+        let offset = self.subkeys_list_offset;
 
         if offset.0 == u32::MAX{
             return Ok(Vec::new());
         }
 
-        let data_offset = self.hive.seek_to_cell_offset(offset)?;
-
-        log::debug!("reading SubKeysList list from 0x{:x} ({})", data_offset.0, data_offset.0);
-        let subkeys_list: SubKeysList = self.hive.data.borrow_mut().read_le()?;
+        let subkeys_list: SubKeysList = hive.read_structure(offset)?;
 
         log::debug!("SubKeyList is of type '{}'", match subkeys_list {
             SubKeysList::IndexLeaf { items: _ } => "IndexLeaf",
@@ -146,13 +118,11 @@ where
         if subkeys_list.is_index_root() {
             log::debug!("reading indirect subkey lists");
             let subkeys: Result<Vec<_>>= subkeys_list.into_offsets().map(|o| {
-                self.hive.seek_to_cell_offset(o)?;
-                let subsubkeys_list: SubKeysList = self.hive.data.borrow_mut().read_le()?;
+                let subsubkeys_list: SubKeysList = hive.read_structure(offset)?;
                 assert!(!subsubkeys_list.is_index_root());
 
                 let subkeys: Result<Vec<_>> = subsubkeys_list.into_offsets().map(|o2| {
-                    self.hive.seek_to_cell_offset(o2)?;
-                    let nk = Self::from_hive_bin_offset(self.hive, o2)?;
+                    let nk: KeyNode = hive.read_structure(o2)?;
                     Ok(nk)
                 }).collect();
                 subkeys
@@ -165,8 +135,7 @@ where
         } else {
             log::debug!("reading single subkey list");
             let subkeys: Result<Vec<_>> = subkeys_list.into_offsets().map(|offset| {
-                self.hive.seek_to_cell_offset(offset)?;
-                let nk = Self::from_hive_bin_offset(self.hive, offset)?;
+                let nk: KeyNode = hive.read_structure(offset)?;
                 Ok(nk)
             }).collect();
             subkeys
@@ -174,20 +143,22 @@ where
     }
 
     /// returns a list of all values of this very Key Node
-    pub fn values(&self) -> Result<Vec<KeyValue<H, B>>> {
-        let mut result = Vec::with_capacity(self.header.key_values_count as usize);
-        if self.header.key_values_count > 0 && self.header.key_values_list_offset.0 != u32::MAX {
-            self.hive.seek_to_cell_offset(self.header.key_values_list_offset)?;
-
-            log::debug!("reading KeyValueList with {} entries", self.header.key_values_count);
-            let kv_list:KeyValueList = self.hive.data.borrow_mut().read_le_args((self.header.key_values_count,))?;
+    pub fn values<B>(&self, hive: &mut Hive<B>) -> Result<Vec<KeyValue>> where B: BinReaderExt {
+        let mut result = Vec::with_capacity(self.key_values_count as usize);
+        if self.key_values_count > 0 && self.key_values_list_offset.0 != u32::MAX {
+            let kv_list: KeyValueList = hive.read_structure_args(self.key_values_list_offset, (self.key_values_count,))?;
 
             for offset in kv_list.key_value_offsets.iter() {
-                log::debug!("found offset at {} (0x{:08x})", offset.0, offset.0);
-                result.push(KeyValue::from_cell_offset(self.hive, *offset)?);
+                result.push(hive.read_structure(*offset)?);
             }
         }
         Ok(result)
+    }
+}
+
+impl From<Cell<KeyNode>> for KeyNode {
+    fn from(cell: Cell<KeyNode>) -> Self {
+        cell.into_data()
     }
 }
 
@@ -199,11 +170,11 @@ mod tests {
     #[test]
     fn enum_subkeys() {
         let testhive = crate::helpers::tests::testhive_vec();
-        let hive = Hive::new(io::Cursor::new(testhive)).unwrap();
-        assert!(hive.enum_subkeys(|k| {
+        let mut hive = Hive::new(io::Cursor::new(testhive)).unwrap();
+        assert!(hive.enum_subkeys(|hive, k: &KeyNode| {
             assert_eq!(k.name().unwrap(), "ROOT");
 
-            for sk in k.subkeys().unwrap() {
+            for sk in k.subkeys(hive).unwrap() {
                 println!("{}", sk.name().unwrap());
             }
 

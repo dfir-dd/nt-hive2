@@ -4,8 +4,9 @@ use binread::{BinReaderExt, BinRead};
 use crate::Hive;
 use crate::Offset;
 use crate::Result;
-use crate::traits::FromHiveBinOffset;
-use std::ops::Deref;
+use crate::traits::FromOffset;
+use std::io::{Seek, SeekFrom};
+use std::ops::DerefMut;
 
 pub struct Cell<T>
 where
@@ -14,15 +15,16 @@ where
     data: T,
 }
 
-impl<H, B, T> FromHiveBinOffset<H, B> for Cell<T>
+impl<H, B, T> FromOffset<H, B> for Cell<T>
 where
-    H: Deref<Target = Hive<B>> + Copy,
+    H: DerefMut<Target = Hive<B>>,
     B: BinReaderExt,
     T: BinRead {
-    fn from_hive_bin_offset(hive: H, offset: Offset) -> Result<Self> {
-        let offset = hive.seek_to_offset(offset)?;
-        let size: i32 = hive.data.borrow_mut().read_le()?;
-        let data: T = hive.data.borrow_mut().read_le()?;
+
+    fn from_offset(mut hive: H, offset: Offset) -> Result<Self> {
+        let _offset = hive.seek(SeekFrom::Start(offset.0.into()))?;
+        let size: i32 = hive.read_le()?;
+        let data: T = hive.read_le()?;
         Ok(Self {
             size,
             data,
@@ -43,7 +45,20 @@ impl<T> Cell<T> where T: BinRead {
         &self.data
     }
 
-    pub fn into_data(self) -> T {
+    pub(crate) fn into_data(self) -> T {
         self.data
+    }
+
+    pub fn from_offset_args<H, B>(mut hive: H, offset: Offset, args: T::Args) -> Result<Cell<T>> where
+        H: DerefMut<Target = Hive<B>>,
+        B: BinReaderExt
+    {
+        let _offset = hive.seek(SeekFrom::Start(offset.0.into()))?;
+        let size: i32 = hive.read_le()?;
+        let data: T = hive.read_le_args(args)?;
+        Ok(Cell::<T> {
+            size,
+            data,
+        })
     }
 }

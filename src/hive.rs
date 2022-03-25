@@ -1,24 +1,23 @@
-use std::io::{SeekFrom};
 use std::cell::RefCell;
+use std::io::{ErrorKind, Read, Seek, SeekFrom};
+use std::rc::Rc;
 
 use crate::nk::KeyNode;
-use crate::traits::FromHiveBinOffset;
-use crate::{NtHiveError, Result};
+use crate::traits::FromOffset;
+use crate::{Cell, NtHiveError, Result};
 use binread::{BinRead, BinReaderExt, PosValue};
 
 pub struct Hive<B>
 where
     B: BinReaderExt,
 {
-    pub(crate) data: RefCell<B>,
+    data: B,
     base_block: HiveBaseBlock,
     data_offset: u32,
 }
 
 #[derive(BinRead, Debug, Clone, Copy)]
-pub struct Offset (
-    pub u32
-);
+pub struct Offset(pub u32);
 
 impl<B> Hive<B>
 where
@@ -30,28 +29,44 @@ where
         let data_offset = data.stream_position()? as u32;
 
         Ok(Self {
-            data: RefCell::new(data),
+            data,
             base_block,
             data_offset,
         })
     }
 
-    pub fn enum_subkeys(&self, callback: fn(&KeyNode<&Self, B>) -> Result<()>) -> Result<()> {
+    pub fn enum_subkeys(&mut self, callback: fn(&mut Self, &KeyNode) -> Result<()>) -> Result<()> {
         let root_key_node = self.root_key_node()?;
-        callback(&root_key_node)?;
+        callback(self, &root_key_node)?;
         Ok(())
     }
 
-    pub fn root_key_node(&self) -> Result<KeyNode<&Self, B>> {
-        KeyNode::from_hive_bin_offset(self, self.base_block.root_cell_offset)
+    pub fn root_key_node(&mut self) -> Result<KeyNode> {
+        self.read_structure(self.base_block.root_cell_offset)
     }
 
+    pub fn read_structure<T>(&mut self, offset: Offset) -> Result<T>
+    where
+        T: BinRead + std::convert::From<crate::Cell<T>>,
+    {
+        let cell: Cell<T> = Cell::from_offset(self, offset)?;
+        Ok(cell.into())
+    }
+    
+    pub fn read_structure_args<T>(&mut self, offset: Offset, args: T::Args) -> Result<T>
+    where
+        T: BinRead + std::convert::From<crate::Cell<T>>
+    {
+        let cell: Cell<T> = Cell::from_offset_args(self, offset, args)?;
+        Ok(cell.into())
+    }
+    /*
     /// seeking to a given offset relative to the hive bins data AND read a cell header at this position.
     /// Reading the cell header moves the read cursor forward by the size of the cell header.
-    /// 
+    ///
     /// This function returns the new cursor position relative
-    /// to the hive bins data 
-    /// 
+    /// to the hive bins data
+    ///
     pub fn seek_to_cell_offset(&self, data_offset: Offset) -> Result<Offset> {
         // Only valid data offsets are accepted here.
         assert!(data_offset.0 != u32::MAX);
@@ -80,10 +95,10 @@ where
     }
 
     /// seeking to a given offset relative to the hove bins data.
-    /// 
+    ///
     /// This function returns the new cursor position relative
-    /// to the hive bins data 
-    /// 
+    /// to the hive bins data
+    ///
     pub fn seek_to_offset(&self, data_offset: Offset) -> Result<Offset> {
         // Only valid data offsets are accepted here.
         assert!(data_offset.0 != u32::MAX);
@@ -99,6 +114,38 @@ where
         // subtract self.data_offset, so that the returned offset can be used
         // again together with this function
         Ok(Offset(new_data_offset - self.data_offset))
+    }
+    */
+}
+
+impl<B> Read for Hive<B>
+where
+    B: BinReaderExt,
+{
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.data.read(buf)
+    }
+}
+
+impl<B> Seek for Hive<B>
+where
+    B: BinReaderExt,
+{
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        let new_offset = match pos {
+            SeekFrom::Start(dst) => self
+                .data
+                .seek(SeekFrom::Start(dst + self.data_offset as u64))?,
+            SeekFrom::End(_) => self.data.seek(pos)?,
+            SeekFrom::Current(_) => self.data.seek(pos)?,
+        };
+        if new_offset <= self.data_offset as u64 {
+            return Err(std::io::Error::new(
+                ErrorKind::InvalidData,
+                "seeked to invalid offset",
+            ));
+        }
+        Ok(new_offset - self.data_offset as u64)
     }
 }
 
@@ -169,10 +216,12 @@ mod tests {
     #[test]
     fn load_hive() {
         let testhive = crate::helpers::tests::testhive_vec();
-        let hive = Hive::new(io::Cursor::new(testhive)).unwrap();
-        assert!(hive.enum_subkeys(|k| {
-            assert_eq!(k.name().unwrap(), "ROOT");
-            Ok(())
-        }).is_ok());
+        let mut hive = Hive::new(io::Cursor::new(testhive)).unwrap();
+        assert!(hive
+            .enum_subkeys(|_, k| {
+                assert_eq!(k.name().unwrap(), "ROOT");
+                Ok(())
+            })
+            .is_ok());
     }
 }

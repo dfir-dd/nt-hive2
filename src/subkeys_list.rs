@@ -1,6 +1,6 @@
 use binread::{derive_binread, BinRead};
 
-use crate::Offset;
+use crate::{Offset, Cell};
 
 /// On-Disk Structure of a Subkeys List header.
 /// This is common for all subkey types (Fast Leaf, Hash Leaf, Index Leaf, Index Root).
@@ -64,6 +64,12 @@ impl SubKeysList {
 
     pub fn is_index_root(&self) -> bool {
         matches!(self, SubKeysList::IndexRoot { items: _ })
+    }
+}
+
+impl From<Cell<SubKeysList>> for SubKeysList {
+    fn from(cell: Cell<SubKeysList>) -> Self {
+        cell.into_data()
     }
 }
 

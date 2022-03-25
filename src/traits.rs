@@ -1,11 +1,11 @@
-use std::ops::Deref;
-use binread::BinReaderExt;
+use std::ops::{DerefMut};
+use binread::{BinReaderExt, BinRead};
 use crate::{Offset, Hive, Result};
 
-pub trait FromHiveBinOffset<H, B>: Sized
+pub trait FromOffset<H, B>: Sized
 where
-    H: Deref<Target = Hive<B>> + Copy,
+    H: DerefMut<Target = Hive<B>>,
     B: BinReaderExt, {
 
-    fn from_hive_bin_offset(hive: H, offset: Offset) -> Result<Self>;
+    fn from_offset(hive: H, offset: Offset) -> Result<Self>;
 }

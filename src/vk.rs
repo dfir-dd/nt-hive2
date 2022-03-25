@@ -1,9 +1,10 @@
 
+use crate::Cell;
 use crate::Hive;
 use crate::NtHiveError;
 use crate::Result;
 use crate::Offset;
-use crate::traits::FromHiveBinOffset;
+use crate::traits::FromOffset;
 
 use std::borrow::Cow;
 use std::io::Read;
@@ -21,6 +22,13 @@ use encoding_rs::UTF_16LE;
 pub struct KeyValueList {
     #[br(count=count)]
     pub key_value_offsets: Vec<Offset>
+}
+
+
+impl From<Cell<KeyValueList>> for KeyValueList {
+    fn from(cell: Cell<KeyValueList>) -> Self {
+        cell.into_data()
+    }
 }
 
 /// Possible data types of the data belonging to a [`KeyValue`].
@@ -58,7 +66,7 @@ bitflags! {
 #[derive(BinRead)]
 #[br(magic = b"vk")]
 #[allow(dead_code)]
-pub struct KeyValueHeader {
+pub struct KeyValue {
     name_length: u16,
     data_size: u32,
     data_offset: Offset,
@@ -79,38 +87,14 @@ fn parse_value_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
     Ok(KeyValueFlags::from_bits(raw_value).unwrap())
 }
 
-pub struct KeyValue<H, B>
-where
-    H: Deref<Target = Hive<B>> + Copy,
-    B: BinReaderExt,
+impl KeyValue
 {
-    header: KeyValueHeader,
-    hive: H,
-}
-
-impl<H, B> KeyValue<H, B>
-where
-    H: Deref<Target = Hive<B>> + Copy,
-    B: BinReaderExt
-{
-    pub fn from_cell_offset(hive: H, offset: Offset) -> Result<Self> {
-        log::debug!("found offset at {}", offset.0);
-        hive.seek_to_cell_offset(offset)?;
-        let header: KeyValueHeader = hive.data.borrow_mut().read_le()?;
-        Ok(
-            Self {
-                header,
-                hive
-            }
-        )
-    }
-
     pub fn name(&self) -> Result<Cow<str>> {
         let (cow, _, had_errors) = 
-        if self.header.flags.contains(KeyValueFlags::VALUE_COMP_NAME) {
-            ISO_8859_15.decode(&self.header.key_name_string[..])
+        if self.flags.contains(KeyValueFlags::VALUE_COMP_NAME) {
+            ISO_8859_15.decode(&self.key_name_string[..])
         } else {
-            UTF_16LE.decode(&self.header.key_name_string[..])
+            UTF_16LE.decode(&self.key_name_string[..])
         };
 
         if had_errors {
@@ -118,5 +102,12 @@ where
         } else {
             Ok(cow)
         }
+    }
+}
+
+
+impl From<Cell<KeyValue>> for KeyValue {
+    fn from(cell: Cell<KeyValue>) -> Self {
+        cell.into_data()
     }
 }
