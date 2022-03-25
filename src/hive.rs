@@ -60,62 +60,6 @@ where
         let cell: Cell<T> = Cell::from_offset_args(self, offset, args)?;
         Ok(cell.into())
     }
-    /*
-    /// seeking to a given offset relative to the hive bins data AND read a cell header at this position.
-    /// Reading the cell header moves the read cursor forward by the size of the cell header.
-    ///
-    /// This function returns the new cursor position relative
-    /// to the hive bins data
-    ///
-    pub fn seek_to_cell_offset(&self, data_offset: Offset) -> Result<Offset> {
-        // Only valid data offsets are accepted here.
-        assert!(data_offset.0 != u32::MAX);
-
-        let data_offset = self.data_offset + data_offset.0 as u32;
-
-        log::debug!("seeking to cell offset: 0x{:x} ({})", data_offset, data_offset);
-
-        self.data.borrow_mut().seek(SeekFrom::Start(data_offset as u64))?;
-        let header: CellHeader = self.data.borrow_mut().read_le()?;
-
-        let cell_data_offset = self.data.borrow_mut().stream_position()? as u32;
-
-        // A cell with size > 0 is unallocated and shouldn't be processed any further by us.
-        if *header.size > 0 {
-            return Err(NtHiveError::UnallocatedCell {
-                offset: data_offset as usize,
-                size: *header.size,
-            });
-        }
-        log::debug!("offset after cell header is: 0x{:x} ({})", cell_data_offset, cell_data_offset);
-
-        // subtract self.data_offset, so that the returned offset can be used
-        // again together with this function
-        Ok(Offset(cell_data_offset - self.data_offset))
-    }
-
-    /// seeking to a given offset relative to the hove bins data.
-    ///
-    /// This function returns the new cursor position relative
-    /// to the hive bins data
-    ///
-    pub fn seek_to_offset(&self, data_offset: Offset) -> Result<Offset> {
-        // Only valid data offsets are accepted here.
-        assert!(data_offset.0 != u32::MAX);
-
-        let data_offset = self.data_offset + data_offset.0 as u32;
-
-        log::debug!("seeking to offset: 0x{:x} ({})", data_offset, data_offset);
-        let new_data_offset = self.data.borrow_mut().seek(SeekFrom::Start(data_offset as u64))?;
-        let new_data_offset: u32 = new_data_offset.try_into()?;
-
-        assert_eq!(data_offset, new_data_offset);
-
-        // subtract self.data_offset, so that the returned offset can be used
-        // again together with this function
-        Ok(Offset(new_data_offset - self.data_offset))
-    }
-    */
 }
 
 impl<B> Read for Hive<B>
