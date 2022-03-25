@@ -118,7 +118,7 @@ impl KeyNode
         if subkeys_list.is_index_root() {
             log::debug!("reading indirect subkey lists");
             let subkeys: Result<Vec<_>>= subkeys_list.into_offsets().map(|o| {
-                let subsubkeys_list: SubKeysList = hive.read_structure(offset)?;
+                let subsubkeys_list: SubKeysList = hive.read_structure(o)?;
                 assert!(!subsubkeys_list.is_index_root());
 
                 let subkeys: Result<Vec<_>> = subsubkeys_list.into_offsets().map(|o2| {
