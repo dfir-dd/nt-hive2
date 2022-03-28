@@ -16,7 +16,6 @@ use std::io::Cursor;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::ops::DerefMut;
 
 pub(crate) const BIG_DATA_SEGMENT_SIZE: u32 = 16344;
 
