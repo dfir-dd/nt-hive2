@@ -2,15 +2,14 @@ use nt_hive2::*;
 use std::fs::File;
 use std::io::{Read, Cursor, Seek};
 
-fn main() -> anyhow::Result<()> {
+fn main() {
     env_logger::init();
         
     let testhive = testhive_vec();
-    let mut hive = Hive::new(Cursor::new(testhive))?;
+    let mut hive = Hive::new(Cursor::new(testhive)).unwrap();
     let mut path = Vec::new();
-    let root_key = &hive.root_key_node()?;
-    print_key(&mut hive, &root_key, &mut path)?;
-    Ok(())
+    let root_key = &hive.root_key_node().unwrap();
+    print_key(&mut hive, &root_key, &mut path).unwrap();
 }
 
 fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>) -> Result<()> where RS: Read + Seek {

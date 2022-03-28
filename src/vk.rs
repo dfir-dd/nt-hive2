@@ -13,6 +13,7 @@ use bitflags::bitflags;
 use std::fmt::Display;
 use std::io::Read;
 use std::io::Seek;
+use std::io::SeekFrom;
 use std::ops::DerefMut;
 
 pub(crate) const BIG_DATA_SEGMENT_SIZE: u32 = 16344;
@@ -129,10 +130,9 @@ impl KeyValue {
         }
 
         let data_size = self.data_size & 0x7fff_ffff;
-        let raw_value = if self.data_size & 0x80000000 == 0x80000000 {
-            eprintln!("seeking to {}", self.data_offset.pos);
-            hive.seek_absolute(self.data_offset.pos);
-            eprintln!("success");
+        let raw_value =
+        if self.data_size & 0x80000000 == 0x80000000 {
+            hive.seek(SeekFrom::Start(self.data_offset.pos));
             let raw_data: SizedVec = hive.read_le_args((data_size as usize,))?;
             raw_data.0
         } else {

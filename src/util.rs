@@ -20,7 +20,9 @@ pub (crate) fn parse_string<R: Read + Seek>(reader: &mut R, ro: &ReadOptions, pa
     };
 
     if had_errors {
-        Err(binread::error::Error::Custom { pos: ro.offset, err: Box::new(format!("unable to decode String as offset 0x{:08x}", ro.offset))})
+        Err(binread::error::Error::Custom {
+            pos: ro.offset,
+            err: Box::new(format!("unable to decode String as offset 0x{:08x}", ro.offset))})
     } else {
         Ok(cow.to_string())
     }
