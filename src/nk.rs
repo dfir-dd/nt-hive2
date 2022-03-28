@@ -14,8 +14,7 @@ use binread::{BinRead, BinReaderExt};
 use bitflags::bitflags;
 use chrono::DateTime;
 use chrono::Utc;
-use crate::util::parse_string;
-use winstructs::timestamp::WinTimestamp;
+use crate::util::{parse_string, parse_timestamp};
 
 #[allow(dead_code)]
 #[derive(BinRead)]
@@ -53,13 +52,6 @@ fn parse_node_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
 {
     let raw_value: u16 = reader.read_le()?;
     Ok(KeyNodeFlags::from_bits(raw_value).unwrap())
-}
-
-fn parse_timestamp<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
--> BinResult<DateTime<Utc>> {
-    let raw_timestamp: [u8;8] = reader.read_le()?;
-    let timestamp = WinTimestamp::new(&raw_timestamp).unwrap();
-    Ok(timestamp.to_datetime())
 }
 
 bitflags! {
