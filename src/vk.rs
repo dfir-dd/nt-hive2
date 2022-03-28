@@ -1,3 +1,4 @@
+use crate::util::parse_regsz;
 use crate::util::parse_string;
 use crate::util::SizedVec;
 use crate::Cell;
@@ -11,6 +12,7 @@ use binread::ReadOptions;
 use binread::{BinRead, BinReaderExt};
 use bitflags::bitflags;
 use std::fmt::Display;
+use std::io::Cursor;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
@@ -86,7 +88,7 @@ pub enum RegistryValue {
     RegNone,
     RegSZ(String),
     RegExpandSZ(String),
-    RegBinary(String),
+    RegBinary(Vec<u8>),
     RegDWord(u32),
     RegDWordBigEndian(u32),
     RegLink(String),
@@ -103,7 +105,7 @@ impl Display for RegistryValue {
             RegistryValue::RegNone => write!(f, "None"),
             RegistryValue::RegSZ(val) => write!(f, "\"{}\"", val),
             RegistryValue::RegExpandSZ(val) => write!(f, "\"{}\"", val),
-            RegistryValue::RegBinary(val) => write!(f, "\"{}\"", val),
+            RegistryValue::RegBinary(val) => write!(f, "{:?}", val),
             RegistryValue::RegDWord(val) => write!(f, "dword:0x{:08x}", val),
             RegistryValue::RegDWordBigEndian(val) => write!(f, "dword:0x{:08x}", val),
             RegistryValue::RegLink(val) => write!(f, "\"{}\"", val),
@@ -130,9 +132,9 @@ impl KeyValue {
         }
 
         let data_size = self.data_size & 0x7fff_ffff;
-        let raw_value =
+        let raw_value = 
         if self.data_size & 0x80000000 == 0x80000000 {
-            hive.seek(SeekFrom::Start(self.data_offset.pos));
+            hive.seek(SeekFrom::Start(self.data_offset.pos))?;
             let raw_data: SizedVec = hive.read_le_args((data_size as usize,))?;
             raw_data.0
         } else {
@@ -147,7 +149,23 @@ impl KeyValue {
             }
         };
 
-        Ok(RegistryValue::RegNone)
+        let result = 
+        match self.data_type {
+            KeyValueDataType::RegNone => RegistryValue::RegNone,
+            KeyValueDataType::RegSZ => RegistryValue::RegSZ(parse_regsz(&raw_value[..])?),
+            KeyValueDataType::RegExpandSZ => RegistryValue::RegExpandSZ(parse_regsz(&raw_value[..])?),
+            KeyValueDataType::RegBinary => RegistryValue::RegNone,
+            KeyValueDataType::RegDWord => RegistryValue::RegDWord(Cursor::new(raw_value).read_le()?),
+            KeyValueDataType::RegDWordBigEndian => RegistryValue::RegDWordBigEndian(Cursor::new(raw_value).read_be()?),
+            KeyValueDataType::RegLink => RegistryValue::RegNone,
+            KeyValueDataType::RegMultiSZ => RegistryValue::RegNone,
+            KeyValueDataType::RegResourceList => RegistryValue::RegNone,
+            KeyValueDataType::RegFullResourceDescriptor => RegistryValue::RegNone,
+            KeyValueDataType::RegResourceRequirementsList => RegistryValue::RegNone,
+            KeyValueDataType::RegQWord => RegistryValue::RegQWord(Cursor::new(raw_value).read_le()?),
+        };
+
+        Ok(result)
     }
 }
 

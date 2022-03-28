@@ -22,9 +22,26 @@ pub (crate) fn parse_string<R: Read + Seek>(reader: &mut R, ro: &ReadOptions, pa
     if had_errors {
         Err(binread::error::Error::Custom {
             pos: ro.offset,
-            err: Box::new(format!("unable to decode String as offset 0x{:08x}", ro.offset))})
+            err: Box::new(format!("unable to decode String at offset 0x{:08x}", ro.offset))})
     } else {
         Ok(cow.to_string())
+    }
+}
+
+pub (crate) fn parse_regsz(raw_string: &[u8]) -> BinResult<String> {
+    let (cow, _, had_errors) = ISO_8859_15.decode(raw_string);
+    if ! had_errors {
+        return Ok(cow.to_string());
+    } else {
+
+        let (cow, _, had_errors) = UTF_16LE.decode(raw_string);
+        if had_errors {
+            Err(binread::error::Error::Custom {
+                pos: 0,
+                err: Box::new("unable to decode RegSZ string")})
+        } else {
+            Ok(cow.to_string())
+        }
     }
 }
 
