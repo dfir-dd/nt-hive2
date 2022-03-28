@@ -14,7 +14,7 @@ fn main() {
 
 fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>) -> Result<()> where RS: Read + Seek {
     path.push(keynode.name().unwrap().to_string());
-    println!("[{}]", path.join("\\"));
+    println!("[{}]; {}", path.join("\\"), keynode.timestamp());
 
     print_values(hive, keynode)?;
 

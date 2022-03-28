@@ -14,7 +14,10 @@ use binread::BinResult;
 use binread::ReadOptions;
 use binread::{BinRead, BinReaderExt};
 use bitflags::bitflags;
+use chrono::DateTime;
+use chrono::Utc;
 use encoding_rs::{ISO_8859_15, UTF_16LE};
+use winstructs::timestamp::WinTimestamp;
 
 #[allow(dead_code)]
 #[derive(BinRead)]
@@ -22,7 +25,9 @@ use encoding_rs::{ISO_8859_15, UTF_16LE};
 pub struct KeyNode {
     #[br(parse_with=parse_node_flags)]
     flags: KeyNodeFlags,
-    timestamp: u64,
+    
+    #[br(parse_with=parse_timestamp)]
+    timestamp: DateTime<Utc>,
     access_bits: u32,
     parent: u32,
     subkey_count: u32,
@@ -50,6 +55,13 @@ fn parse_node_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
 {
     let raw_value: u16 = reader.read_le()?;
     Ok(KeyNodeFlags::from_bits(raw_value).unwrap())
+}
+
+fn parse_timestamp<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
+-> BinResult<DateTime<Utc>> {
+    let raw_timestamp: [u8;8] = reader.read_le()?;
+    let timestamp = WinTimestamp::new(&raw_timestamp).unwrap();
+    Ok(timestamp.to_datetime())
 }
 
 bitflags! {
@@ -93,6 +105,10 @@ impl KeyNode
         } else {
             Ok(cow)
         }
+    }
+
+    pub fn timestamp(&self) -> &DateTime<Utc> {
+        &self.timestamp
     }
 
     pub fn subkeys<'a, B>(&'a self, hive: &mut Hive<B>) -> Result<Vec<Self>> where B: BinReaderExt{
