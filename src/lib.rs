@@ -4,6 +4,8 @@ pub use hive::*;
 pub mod error;
 pub use error::*;
 
+mod util;
+
 mod traits;
 
 mod cell;

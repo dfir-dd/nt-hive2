@@ -138,7 +138,7 @@ mod tests {
         let mut hive = Hive::new(io::Cursor::new(testhive)).unwrap();
         assert!(hive
             .enum_subkeys(|_, k| {
-                assert_eq!(k.name().unwrap(), "ROOT");
+                assert_eq!(k.name(), "ROOT");
                 Ok(())
             })
             .is_ok());

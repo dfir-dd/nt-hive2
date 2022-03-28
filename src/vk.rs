@@ -1,18 +1,14 @@
 
 use crate::Cell;
-use crate::NtHiveError;
-use crate::Result;
 use crate::Offset;
+use crate::util::parse_string;
 
-use std::borrow::Cow;
 use std::io::Read;
 use std::io::Seek;
 use bitflags::bitflags;
 use binread::BinResult;
 use binread::ReadOptions;
 use binread::{BinRead, BinReaderExt};
-use encoding_rs::ISO_8859_15;
-use encoding_rs::UTF_16LE;
 
 #[derive(BinRead)]
 #[br(import(count: u32))]
@@ -74,8 +70,8 @@ pub struct KeyValue {
     flags: KeyValueFlags,
     spare: u16,
 
-    #[br(count=name_length)]
-    key_name_string: Vec<u8>,
+    #[br(parse_with=parse_string, count=name_length, args(flags.contains(KeyValueFlags::VALUE_COMP_NAME)))]
+    key_name_string: String,
 }
 
 fn parse_value_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
@@ -87,19 +83,8 @@ fn parse_value_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
 
 impl KeyValue
 {
-    pub fn name(&self) -> Result<Cow<str>> {
-        let (cow, _, had_errors) = 
-        if self.flags.contains(KeyValueFlags::VALUE_COMP_NAME) {
-            ISO_8859_15.decode(&self.key_name_string[..])
-        } else {
-            UTF_16LE.decode(&self.key_name_string[..])
-        };
-
-        if had_errors {
-            Err(NtHiveError::StringEncodingError)
-        } else {
-            Ok(cow)
-        }
+    pub fn name(&self) -> &str {
+        &self.key_name_string
     }
 }
 

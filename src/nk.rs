@@ -1,10 +1,8 @@
-use std::borrow::Cow;
 use std::io::Read;
 use std::io::Seek;
 
 use crate::Cell;
 use crate::Hive;
-use crate::NtHiveError;
 use crate::Result;
 use crate::subkeys_list::*;
 use crate::Offset;
@@ -16,7 +14,7 @@ use binread::{BinRead, BinReaderExt};
 use bitflags::bitflags;
 use chrono::DateTime;
 use chrono::Utc;
-use encoding_rs::{ISO_8859_15, UTF_16LE};
+use crate::util::parse_string;
 use winstructs::timestamp::WinTimestamp;
 
 #[allow(dead_code)]
@@ -46,8 +44,8 @@ pub struct KeyNode {
     key_name_length: u16,
     class_name_length: u16,
 
-    #[br(count=key_name_length)]
-    key_name_string: Vec<u8>,
+    #[br(parse_with=parse_string, count=key_name_length, args(flags.contains(KeyNodeFlags::KEY_COMP_NAME)))]
+    key_name_string: String,
 }
 
 fn parse_node_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
@@ -92,19 +90,8 @@ bitflags! {
 impl KeyNode
 {
     /// Returns the name of this Key Node.
-    pub fn name(&self) -> Result<Cow<str>> {
-        let (cow, _, had_errors) = 
-        if self.flags.contains(KeyNodeFlags::KEY_COMP_NAME) {
-            ISO_8859_15.decode(&self.key_name_string[..])
-        } else {
-            UTF_16LE.decode(&self.key_name_string[..])
-        };
-
-        if had_errors {
-            Err(NtHiveError::StringEncodingError)
-        } else {
-            Ok(cow)
-        }
+    pub fn name(&self) -> &str {
+        &self.key_name_string
     }
 
     pub fn timestamp(&self) -> &DateTime<Utc> {
@@ -186,10 +173,10 @@ mod tests {
         let testhive = crate::helpers::tests::testhive_vec();
         let mut hive = Hive::new(io::Cursor::new(testhive)).unwrap();
         assert!(hive.enum_subkeys(|hive, k: &KeyNode| {
-            assert_eq!(k.name().unwrap(), "ROOT");
+            assert_eq!(k.name(), "ROOT");
 
             for sk in k.subkeys(hive).unwrap() {
-                println!("{}", sk.name().unwrap());
+                println!("{}", sk.name());
             }
 
             Ok(())
