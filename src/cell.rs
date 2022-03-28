@@ -6,7 +6,6 @@ use crate::Hive;
 use crate::Offset;
 use crate::Result;
 use crate::traits::FromOffset;
-use crate::NtHiveError;
 use std::io::{Seek, SeekFrom};
 use std::ops::DerefMut;
 
@@ -14,10 +13,7 @@ use std::ops::DerefMut;
 #[derive(BinRead)]
 struct CellHeader {
     // The cell size must be a multiple of 8 bytes
-    #[br(assert(*size%8 == 0, NtHiveError::InvalidSizeFieldAlignment {
-        expected_alignment: 8,
-        size: *size as usize,
-        offset: size.pos as usize}))]
+    #[br(assert(*size%8 == 0))]
     size: PosValue<i32>,
 }
 

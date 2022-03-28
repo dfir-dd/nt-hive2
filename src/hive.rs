@@ -58,6 +58,10 @@ where
         let cell: Cell<T> = Cell::from_offset_args(self, offset, args)?;
         Ok(cell.into())
     }
+
+    pub fn seek_absolute(&mut self, pos: u64) -> std::io::Result<u64> {
+        self.data.seek(SeekFrom::Start(pos))
+    }
 }
 
 impl<B> Read for Hive<B>
