@@ -1,5 +1,4 @@
-use crate::util::parse_regsz;
-use crate::util::parse_string;
+use crate::util::*;
 use crate::util::SizedVec;
 use crate::Cell;
 use crate::Hive;
@@ -104,11 +103,11 @@ impl Display for RegistryValue {
             RegistryValue::RegNone => write!(f, "None"),
             RegistryValue::RegSZ(val) => write!(f, "\"{}\"", val),
             RegistryValue::RegExpandSZ(val) => write!(f, "\"{}\"", val),
-            RegistryValue::RegBinary(val) => write!(f, "{:?}", val),
+            RegistryValue::RegBinary(val) => write!(f, "{:?}", if val.len() > 16 {&val[..16]} else {val}),
             RegistryValue::RegDWord(val) => write!(f, "dword:0x{:08x}", val),
             RegistryValue::RegDWordBigEndian(val) => write!(f, "dword:0x{:08x}", val),
             RegistryValue::RegLink(val) => write!(f, "\"{}\"", val),
-            RegistryValue::RegMultiSZ(val) => write!(f, "\"{:?}\"", val),
+            RegistryValue::RegMultiSZ(val) => write!(f, "{:?}", val),
             RegistryValue::RegResourceList(val) => write!(f, "\"{}\"", val),
             RegistryValue::RegFullResourceDescriptor(val) => write!(f, "\"{}\"", val),
             RegistryValue::RegResourceRequirementsList(val) => write!(f, "\"{}\"", val),
@@ -151,13 +150,13 @@ impl KeyValue {
         let result = 
         match self.data_type {
             KeyValueDataType::RegNone => RegistryValue::RegNone,
-            KeyValueDataType::RegSZ => RegistryValue::RegSZ(parse_regsz(&raw_value[..])?),
-            KeyValueDataType::RegExpandSZ => RegistryValue::RegExpandSZ(parse_regsz(&raw_value[..])?),
-            KeyValueDataType::RegBinary => RegistryValue::RegNone,
+            KeyValueDataType::RegSZ => RegistryValue::RegSZ(parse_reg_sz(&raw_value[..])?),
+            KeyValueDataType::RegExpandSZ => RegistryValue::RegExpandSZ(parse_reg_sz(&raw_value[..])?),
+            KeyValueDataType::RegBinary => RegistryValue::RegBinary(raw_value),
             KeyValueDataType::RegDWord => RegistryValue::RegDWord(Cursor::new(raw_value).read_le()?),
             KeyValueDataType::RegDWordBigEndian => RegistryValue::RegDWordBigEndian(Cursor::new(raw_value).read_be()?),
             KeyValueDataType::RegLink => RegistryValue::RegNone,
-            KeyValueDataType::RegMultiSZ => RegistryValue::RegNone,
+            KeyValueDataType::RegMultiSZ => RegistryValue::RegMultiSZ(parse_reg_multi_sz(&raw_value[..])?),
             KeyValueDataType::RegResourceList => RegistryValue::RegNone,
             KeyValueDataType::RegFullResourceDescriptor => RegistryValue::RegNone,
             KeyValueDataType::RegResourceRequirementsList => RegistryValue::RegNone,

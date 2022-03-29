@@ -28,21 +28,30 @@ pub (crate) fn parse_string<R: Read + Seek>(reader: &mut R, ro: &ReadOptions, pa
     }
 }
 
-pub (crate) fn parse_regsz(raw_string: &[u8]) -> BinResult<String> {
-    let (cow, _, had_errors) = ISO_8859_15.decode(raw_string);
+pub (crate) fn parse_reg_sz(raw_string: &[u8]) -> BinResult<String> {
+    let (cow, _, had_errors) = UTF_16LE.decode(raw_string);
     if ! had_errors {
+        assert_eq!(raw_string.len(), cow.len()*2);
         return Ok(cow.to_string());
     } else {
 
-        let (cow, _, had_errors) = UTF_16LE.decode(raw_string);
+        let (cow, _, had_errors) = ISO_8859_15.decode(raw_string);
         if had_errors {
             Err(binread::error::Error::Custom {
                 pos: 0,
                 err: Box::new("unable to decode RegSZ string")})
         } else {
+            assert_eq!(raw_string.len(), cow.len());
             Ok(cow.to_string())
         }
     }
+}
+
+pub (crate) fn parse_reg_multi_sz(raw_string: &[u8]) -> BinResult<Vec<String>> {
+    let multi_string: Vec<String> = parse_reg_sz(raw_string)?.split('\0')
+        .map(|x| x.to_owned())
+        .collect();
+    Ok(multi_string)
 }
 
 pub (crate) fn parse_timestamp<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
