@@ -48,9 +48,21 @@ pub (crate) fn parse_reg_sz(raw_string: &[u8]) -> BinResult<String> {
 }
 
 pub (crate) fn parse_reg_multi_sz(raw_string: &[u8]) -> BinResult<Vec<String>> {
-    let multi_string: Vec<String> = parse_reg_sz(raw_string)?.split('\0')
+    let mut multi_string: Vec<String> = parse_reg_sz(raw_string)?.split('\0')
         .map(|x| x.to_owned())
         .collect();
+    
+    // due to the way split() works we have an empty string after the last \0 character
+    // and due to the way RegMultiSZ works we have an additional empty string between the
+    // last two \0 characters.
+    // those additional empty strings will be deleted afterwards:
+    assert!(! multi_string.len() >= 2);
+    assert_eq!(multi_string.last().unwrap().len(), 0);
+    multi_string.pop();
+
+    assert_eq!(multi_string.last().unwrap().len(), 0);
+    multi_string.pop();
+
     Ok(multi_string)
 }
 
