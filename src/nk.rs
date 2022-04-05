@@ -3,7 +3,6 @@ use std::io::Seek;
 
 use crate::Cell;
 use crate::Hive;
-use crate::Result;
 use crate::subkeys_list::*;
 use crate::Offset;
 use crate::vk::KeyValueList;
@@ -90,7 +89,7 @@ impl KeyNode
         &self.timestamp
     }
 
-    pub fn subkeys<'a, B>(&'a self, hive: &mut Hive<B>) -> Result<Vec<Self>> where B: BinReaderExt{
+    pub fn subkeys<'a, B>(&'a self, hive: &mut Hive<B>) -> BinResult<Vec<Self>> where B: BinReaderExt{
         let offset = self.subkeys_list_offset;
 
         if offset.0 == u32::MAX{
@@ -110,11 +109,11 @@ impl KeyNode
 
         if subkeys_list.is_index_root() {
             log::debug!("reading indirect subkey lists");
-            let subkeys: Result<Vec<_>>= subkeys_list.into_offsets().map(|o| {
+            let subkeys: BinResult<Vec<_>>= subkeys_list.into_offsets().map(|o| {
                 let subsubkeys_list: SubKeysList = hive.read_structure(o)?;
                 assert!(!subsubkeys_list.is_index_root());
 
-                let subkeys: Result<Vec<_>> = subsubkeys_list.into_offsets().map(|o2| {
+                let subkeys: BinResult<Vec<_>> = subsubkeys_list.into_offsets().map(|o2| {
                     let nk: KeyNode = hive.read_structure(o2)?;
                     Ok(nk)
                 }).collect();
@@ -127,7 +126,7 @@ impl KeyNode
             }
         } else {
             log::debug!("reading single subkey list");
-            let subkeys: Result<Vec<_>> = subkeys_list.into_offsets().map(|offset| {
+            let subkeys: BinResult<Vec<_>> = subkeys_list.into_offsets().map(|offset| {
                 let nk: KeyNode = hive.read_structure(offset)?;
                 Ok(nk)
             }).collect();
@@ -136,13 +135,14 @@ impl KeyNode
     }
 
     /// returns a list of all values of this very Key Node
-    pub fn values<B>(&self, hive: &mut Hive<B>) -> Result<Vec<KeyValue>> where B: BinReaderExt {
+    pub fn values<B>(&self, hive: &mut Hive<B>) -> BinResult<Vec<KeyValue>> where B: BinReaderExt {
         let mut result = Vec::with_capacity(self.key_values_count as usize);
         if self.key_values_count > 0 && self.key_values_list_offset.0 != u32::MAX {
-            let kv_list: KeyValueList = hive.read_structure_args(self.key_values_list_offset, (self.key_values_count,))?;
+            let kv_list: KeyValueList = hive.read_structure_args(self.key_values_list_offset, (self.key_values_count,)).unwrap();
 
             for offset in kv_list.key_value_offsets.iter() {
-                result.push(hive.read_structure(*offset)?);
+                log::debug!("reading KeyValue from {} (0x{:08x})", offset.0 + hive.data_offset(), offset.0 + hive.data_offset());
+                result.push(hive.read_structure(*offset).unwrap());
             }
         }
         Ok(result)

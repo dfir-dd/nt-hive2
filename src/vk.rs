@@ -1,5 +1,5 @@
+use crate::sized_vec::SizedVec;
 use crate::util::*;
-use crate::util::SizedVec;
 use crate::Cell;
 use crate::Hive;
 use crate::Offset;
@@ -7,6 +7,7 @@ use crate::Offset;
 use binread::BinResult;
 use binread::PosValue;
 use binread::ReadOptions;
+use binread::derive_binread;
 use binread::{BinRead, BinReaderExt};
 use bitflags::bitflags;
 use std::fmt::Display;
@@ -45,7 +46,7 @@ bitflags! {
     }
 }
 
-#[derive(BinRead)]
+#[derive_binread]
 #[br(magic = b"vk")]
 #[allow(dead_code)]
 /// https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#key-value
@@ -61,11 +62,16 @@ pub struct KeyValue {
     #[br(try)]
     data_type: Option<KeyValueDataType>,
 
+    #[br(temp, if(data_type.is_none()))]
+    data_type_spare: u32,
+
     #[br(parse_with=parse_value_flags)]
     flags: KeyValueFlags,
+
+    #[br(temp)]
     spare: u16,
 
-    #[br(parse_with=parse_string, count=name_length, args(flags.contains(KeyValueFlags::VALUE_COMP_NAME)))]
+    #[br(if(name_length>0, "(Default)".to_string()), parse_with=parse_string, count=name_length, args(flags.contains(KeyValueFlags::VALUE_COMP_NAME)))]
     key_name_string: String,
 }
 
@@ -157,6 +163,15 @@ impl KeyValue {
         &self.key_name_string
     }
 
+    pub fn is_resident(&self) -> bool {
+        u32::has_first_bit_set(self.data_size)
+    }
+
+    pub fn data_size(&self) -> u32 {
+        const FIRST_BIT: u32 = 1 << (u32::BITS - 1);
+        self.data_size & (! FIRST_BIT)
+    }
+
     pub fn value<B>(&self, hive: &mut Hive<B>) -> BinResult<RegistryValue>
     where
         B: BinReaderExt,
@@ -170,20 +185,24 @@ impl KeyValue {
             return Ok(RegistryValue::RegNone);
         }
 
-        let data_size = self.data_size & 0x7fff_ffff;
         let raw_value = 
-        if self.data_size & 0x80000000 == 0x80000000 {
+        if self.is_resident() {
             hive.seek(SeekFrom::Start(self.data_offset.pos))?;
-            let raw_data: SizedVec = hive.read_le_args((data_size as usize,))?;
+            let raw_data: SizedVec = hive.read_le_args((self.data_size() as usize,))?;
             raw_data.0
         } else {
+            // data is not resident in the vk node. instead,
+            // offset points to the cell where the data is being stored.
+            // That might be a BigData element, or an atomic value.
+
             // read Big Data
-            if data_size > BIG_DATA_SEGMENT_SIZE {
+            if self.data_size() > BIG_DATA_SEGMENT_SIZE {
                 Vec::new()
             } else {
                 // don't treat data as Big Data
+                //eprintln!("reading data of size {} from offset {:08x}", self.data_size(), self.data_offset.val.0 + hive.data_offset());
                 let data_cell: SizedVec =
-                    hive.read_structure_args(self.data_offset.val, (data_size as usize,))?;
+                    hive.read_structure_args(self.data_offset.val, (self.data_size() as usize,))?;
                 data_cell.0
             }
         };

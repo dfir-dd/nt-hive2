@@ -7,7 +7,7 @@ edition = "2021"
 
 [features]
 default = ["regdump"]
-regdump = ["env_logger", "anyhow", "std"]
+regdump = ["env_logger", "std"]
 std = []
 
 [[bin]]
@@ -27,4 +27,4 @@ log = "0.4"
 chrono = "0.4"
 env_logger = {version="0.9", optional=true}
 winstructs = "0.3.0"
-anyhow = {version = "1.0", optional = true}
+anyhow = "1.0"

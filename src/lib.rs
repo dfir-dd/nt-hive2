@@ -1,9 +1,6 @@
 pub mod hive;
 pub use hive::*;
 
-pub mod error;
-pub use error::*;
-
 mod util;
 
 mod traits;
@@ -15,5 +12,6 @@ pub mod helpers;
 mod nk;
 mod vk;
 mod subkeys_list;
+mod sized_vec;
 
 pub use nk::KeyNode;

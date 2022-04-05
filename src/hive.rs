@@ -2,8 +2,8 @@ use std::io::{ErrorKind, Read, Seek, SeekFrom};
 
 use crate::nk::KeyNode;
 use crate::traits::FromOffset;
-use crate::{Cell, Result};
-use binread::{BinRead, BinReaderExt};
+use crate::{Cell};
+use binread::{BinRead, BinReaderExt, BinResult};
 
 pub struct Hive<B>
 where
@@ -21,7 +21,7 @@ impl<B> Hive<B>
 where
     B: BinReaderExt,
 {
-    pub fn new(mut data: B) -> Result<Self> {
+    pub fn new(mut data: B) -> BinResult<Self> {
         data.seek(SeekFrom::Start(0))?;
         let base_block: HiveBaseBlock = data.read_le().unwrap();
         let data_offset = data.stream_position()? as u32;
@@ -33,30 +33,36 @@ where
         })
     }
 
-    pub fn enum_subkeys(&mut self, callback: fn(&mut Self, &KeyNode) -> Result<()>) -> Result<()> {
+    pub fn enum_subkeys(&mut self, callback: fn(&mut Self, &KeyNode) -> BinResult<()>) -> BinResult<()> {
         let root_key_node = self.root_key_node()?;
         callback(self, &root_key_node)?;
         Ok(())
     }
 
-    pub fn root_key_node(&mut self) -> Result<KeyNode> {
+    pub fn root_key_node(&mut self) -> BinResult<KeyNode> {
         self.read_structure(self.base_block.root_cell_offset)
     }
 
-    pub fn read_structure<T>(&mut self, offset: Offset) -> Result<T>
+    pub fn read_structure<T>(&mut self, offset: Offset) -> BinResult<T>
     where
         T: BinRead + std::convert::From<crate::Cell<T>>,
     {
-        let cell: Cell<T> = Cell::from_offset(self, offset)?;
+        let cell: Cell<T> = Cell::from_offset(self, offset).unwrap();
+        assert!(cell.is_allocated());
         Ok(cell.into())
     }
     
-    pub fn read_structure_args<T>(&mut self, offset: Offset, args: T::Args) -> Result<T>
+    pub fn read_structure_args<T>(&mut self, offset: Offset, args: T::Args) -> BinResult<T>
     where
         T: BinRead + std::convert::From<crate::Cell<T>>
     {
         let cell: Cell<T> = Cell::from_offset_args(self, offset, args)?;
+        assert!(cell.is_allocated());
         Ok(cell.into())
+    }
+
+    pub fn data_offset(&self) -> &u32 {
+        &self.data_offset
     }
 }
 

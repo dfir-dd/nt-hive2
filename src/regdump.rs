@@ -1,6 +1,7 @@
 use nt_hive2::*;
 use std::fs::File;
 use std::io::{Read, Cursor, Seek};
+use anyhow::Result;
 
 fn main() {
     env_logger::init();
@@ -27,8 +28,8 @@ fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>)
 }
 
 fn print_values<RS>(hive: &mut Hive<RS>, keynode: &KeyNode) -> Result<()> where RS: Read + Seek {
-    for value in keynode.values(hive)? {
-        println!("\"{}\" = {}", value.name(), value.value(hive)?);
+    for value in keynode.values(hive).unwrap() {
+        println!("\"{}\" = {}", value.name(), value.value(hive).unwrap());
     }
     Ok(())
 }

@@ -1,12 +1,9 @@
-use std::{io::{Read, Seek}, mem};
+use std::{io::{Read, Seek}};
 
 use binread::{ReadOptions, BinResult, BinRead, BinReaderExt};
 use chrono::{DateTime, Utc};
 use encoding_rs::{ISO_8859_15, UTF_16LE};
 use winstructs::timestamp::WinTimestamp;
-
-use crate::{Cell};
-
 
 pub (crate) fn parse_string<R: Read + Seek>(reader: &mut R, ro: &ReadOptions, params: (bool,))
 -> BinResult<String> {
@@ -29,9 +26,13 @@ pub (crate) fn parse_string<R: Read + Seek>(reader: &mut R, ro: &ReadOptions, pa
 }
 
 pub (crate) fn parse_reg_sz(raw_string: &[u8]) -> BinResult<String> {
+    let res = parse_reg_sz_raw(raw_string)?;
+    Ok(res.trim_end_matches(char::from(0)).to_string())
+}
+
+pub fn parse_reg_sz_raw(raw_string: &[u8]) -> BinResult<String> {
     let (cow, _, had_errors) = UTF_16LE.decode(raw_string);
     if ! had_errors {
-        assert_eq!(raw_string.len(), cow.len()*2);
         return Ok(cow.to_string());
     } else {
 
@@ -48,7 +49,7 @@ pub (crate) fn parse_reg_sz(raw_string: &[u8]) -> BinResult<String> {
 }
 
 pub (crate) fn parse_reg_multi_sz(raw_string: &[u8]) -> BinResult<Vec<String>> {
-    let mut multi_string: Vec<String> = parse_reg_sz(raw_string)?.split('\0')
+    let mut multi_string: Vec<String> = parse_reg_sz_raw(raw_string)?.split('\0')
         .map(|x| x.to_owned())
         .collect();
     
@@ -60,8 +61,10 @@ pub (crate) fn parse_reg_multi_sz(raw_string: &[u8]) -> BinResult<Vec<String>> {
     assert_eq!(multi_string.last().unwrap().len(), 0);
     multi_string.pop();
 
-    assert_eq!(multi_string.last().unwrap().len(), 0);
-    multi_string.pop();
+    if multi_string.last().is_some() {
+        assert_eq!(multi_string.last().unwrap().len(), 0);
+        multi_string.pop();
+    }
 
     Ok(multi_string)
 }
@@ -73,18 +76,13 @@ pub (crate) fn parse_timestamp<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions
     Ok(timestamp.to_datetime())
 }
 
-#[derive(BinRead)]
-#[br(import(count:usize))]
-pub (crate) struct SizedVec (
-    #[br(count=count)]
-    pub Vec<u8>
-);
+pub (crate) trait HasFirstBitSet {
+    fn has_first_bit_set (val: Self) -> bool;
+}
 
-impl From<Cell<SizedVec>> for SizedVec {
-    fn from(cell: Cell<SizedVec>) -> Self {
-        const ALIGNMENT: usize = 8;
-        let cell_expected_size = (cell.data().0.len() + mem::size_of::<i32>() + (ALIGNMENT-1)) & !(ALIGNMENT-1);
-        assert_eq!(cell.contents_size() as usize, cell_expected_size);
-        cell.into_data()
+impl HasFirstBitSet for u32 {
+    fn has_first_bit_set (val: Self) -> bool {
+        const FIRST_BIT: u32 = 1 << (u32::BITS - 1);
+        val & FIRST_BIT == FIRST_BIT
     }
 }
