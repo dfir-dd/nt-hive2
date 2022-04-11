@@ -10,7 +10,7 @@ use std::ops::DerefMut;
 
 
 #[derive(BinRead)]
-struct CellHeader {
+pub struct CellHeader {
     // The cell size must be a multiple of 8 bytes
     #[br(assert(*size%8 == 0))]
     size: PosValue<i32>,

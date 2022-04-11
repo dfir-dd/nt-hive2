@@ -29,7 +29,7 @@ fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>)
 
 fn print_values<RS>(hive: &mut Hive<RS>, keynode: &KeyNode) -> Result<()> where RS: Read + Seek {
     for value in keynode.values(hive).unwrap() {
-        println!("\"{}\" = {}", value.name(), value.value(hive).unwrap());
+        println!("\"{}\" = {}", value.name(), value.value());
     }
     Ok(())
 }
