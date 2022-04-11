@@ -5,7 +5,6 @@ use crate::Hive;
 use crate::Offset;
 
 use binread::BinResult;
-use binread::PosValue;
 use binread::ReadOptions;
 use binread::derive_binread;
 use binread::{BinRead, BinReaderExt};
@@ -14,9 +13,6 @@ use std::fmt::Display;
 use std::io::Cursor;
 use std::io::Read;
 use std::io::Seek;
-use std::io::SeekFrom;
-
-pub(crate) const BIG_DATA_SEGMENT_SIZE: u32 = 16344;
 
 #[derive(BinRead)]
 #[br(import(count: u32))]
@@ -46,14 +42,46 @@ bitflags! {
     }
 }
 
+#[derive(BinRead)]
+#[br(import(data_size: u32))]
+pub (crate) enum OffsetOrData {
+    /// When the most significant bit is 1, data (4 bytes or less) is stored in
+    /// the Data offset field directly (when data contains less than 4 bytes,
+    /// it is being stored as is in the beginning of the Data offset field).
+    #[br(pre_assert(u32::has_first_bit_set(&data_size) && ( without_first_bit(data_size) == 3 || without_first_bit(data_size) == 4) ))]
+    U32Data(u32),
+
+    #[br(pre_assert(u32::has_first_bit_set(&data_size) && without_first_bit(data_size) == 2))]
+    U16Data(u16, u16),
+
+    #[br(pre_assert(u32::has_first_bit_set(&data_size) && without_first_bit(data_size) == 1))]
+    U8Data(u8, u8, u8, u8),
+
+    #[br(pre_assert(u32::has_first_bit_set(&data_size) && without_first_bit(data_size) == 0))]
+    None(u32),
+
+    /// When the most significant bit is 0, data is stored in the Cell data
+    /// field of another cell (pointed by the Data offset field) or in the Cell
+    /// data fields of multiple cells (referenced in the Big data structure
+    /// stored in a cell pointed by the Data offset field).
+    #[br(pre_assert(! u32::has_first_bit_set(&data_size)))]
+    Offset(Offset),
+}
+
 #[derive_binread]
 #[br(magic = b"vk")]
 #[allow(dead_code)]
 /// https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#key-value
 pub struct KeyValue {
     name_length: u16,
+
+    #[br(assert(
+        [U32_FIRST_BIT | 0, U32_FIRST_BIT | 1, U32_FIRST_BIT | 3, U32_FIRST_BIT | 2, U32_FIRST_BIT | 4].contains(&data_size)
+         || ! u32::has_first_bit_set(&data_size), "invalid data size: 0x{:08x}", data_size))]
     data_size: u32,
-    data_offset: PosValue<Offset>,
+
+    #[br(args(data_size))]
+    offset_or_data: OffsetOrData,
 
     /// There are also Types that do not have a value that corresponds to
     /// anything in the list above. These are typically seen in the SAM
@@ -71,7 +99,10 @@ pub struct KeyValue {
     #[br(temp)]
     spare: u16,
 
-    #[br(if(name_length>0, "(Default)".to_string()), parse_with=parse_string, count=name_length, args(flags.contains(KeyValueFlags::VALUE_COMP_NAME)))]
+    #[br(   if(name_length>0, "(Default)".to_string()),
+            parse_with=parse_string,
+            count=name_length,
+            args(flags.contains(KeyValueFlags::VALUE_COMP_NAME)))]
     key_name_string: String,
 }
 
@@ -164,7 +195,7 @@ impl KeyValue {
     }
 
     pub fn is_resident(&self) -> bool {
-        u32::has_first_bit_set(self.data_size)
+        u32::has_first_bit_set(&self.data_size)
     }
 
     pub fn data_size(&self) -> u32 {
@@ -176,55 +207,47 @@ impl KeyValue {
     where
         B: BinReaderExt,
     {
-        let data_type = match &self.data_type {
-            None => return Ok(RegistryValue::RegUnknown),
-            Some(dt) => dt
-        };
-
-        if matches!(data_type, KeyValueDataType::RegNone) {
-            return Ok(RegistryValue::RegNone);
-        }
-
-        let raw_value = 
-        if self.is_resident() {
-            hive.seek(SeekFrom::Start(self.data_offset.pos))?;
-            let raw_data: SizedVec = hive.read_le_args((self.data_size() as usize,))?;
-            raw_data.0
-        } else {
-            // data is not resident in the vk node. instead,
-            // offset points to the cell where the data is being stored.
-            // That might be a BigData element, or an atomic value.
-
-            // read Big Data
-            if self.data_size() > BIG_DATA_SEGMENT_SIZE {
-                Vec::new()
-            } else {
-                // don't treat data as Big Data
-                //eprintln!("reading data of size {} from offset {:08x}", self.data_size(), self.data_offset.val.0 + hive.data_offset());
-                let data_cell: SizedVec =
-                    hive.read_structure_args(self.data_offset.val, (self.data_size() as usize,))?;
-                data_cell.0
+        Ok(
+            match self.offset_or_data {
+                OffsetOrData::U32Data(val) => RegistryValue::RegDWord(val.clone()),
+                OffsetOrData::U16Data(_, val) => RegistryValue::RegDWord(val as u32),
+                OffsetOrData::U8Data(_, _, _, val) => RegistryValue::RegDWord(val as u32),
+                OffsetOrData::None(_) => RegistryValue::RegNone,
+                OffsetOrData::Offset(offset) => {
+                    match &self.data_type {
+                        None                            => RegistryValue::RegUnknown,
+                        Some(KeyValueDataType::RegNone) => RegistryValue::RegUnknown,
+                        Some(dt)        => {
+                            let raw_value = if self.data_size() > BIG_DATA_SEGMENT_SIZE {
+                                Vec::new()
+                            } else {
+                                // don't treat data as Big Data
+                                //eprintln!("reading data of size {} from offset {:08x}", self.data_size(), self.data_offset.val.0 + hive.data_offset());
+                                let data_cell: SizedVec =
+                                    hive.read_structure_args(offset, (self.data_size() as usize,))?;
+                                data_cell.0
+                            }; 
+    
+                            match dt {
+                                KeyValueDataType::RegNone => RegistryValue::RegNone,
+                                KeyValueDataType::RegSZ => RegistryValue::RegSZ(parse_reg_sz(&raw_value[..])?),
+                                KeyValueDataType::RegExpandSZ => RegistryValue::RegExpandSZ(parse_reg_sz(&raw_value[..])?),
+                                KeyValueDataType::RegBinary => RegistryValue::RegBinary(raw_value),
+                                KeyValueDataType::RegDWord => RegistryValue::RegDWord(Cursor::new(raw_value).read_le()?),
+                                KeyValueDataType::RegDWordBigEndian => RegistryValue::RegDWordBigEndian(Cursor::new(raw_value).read_be()?),
+                                KeyValueDataType::RegLink => RegistryValue::RegNone,
+                                KeyValueDataType::RegMultiSZ => RegistryValue::RegMultiSZ(parse_reg_multi_sz(&raw_value[..])?),
+                                KeyValueDataType::RegResourceList => RegistryValue::RegNone,
+                                KeyValueDataType::RegFullResourceDescriptor => RegistryValue::RegNone,
+                                KeyValueDataType::RegResourceRequirementsList => RegistryValue::RegNone,
+                                KeyValueDataType::RegQWord => RegistryValue::RegQWord(Cursor::new(raw_value).read_le()?),
+                                KeyValueDataType::RegFileTime => RegistryValue::RegFileTime,
+                            }
+                        }
+                    }
+                },
             }
-        };
-
-        let result = 
-        match data_type {
-            KeyValueDataType::RegNone => RegistryValue::RegNone,
-            KeyValueDataType::RegSZ => RegistryValue::RegSZ(parse_reg_sz(&raw_value[..])?),
-            KeyValueDataType::RegExpandSZ => RegistryValue::RegExpandSZ(parse_reg_sz(&raw_value[..])?),
-            KeyValueDataType::RegBinary => RegistryValue::RegBinary(raw_value),
-            KeyValueDataType::RegDWord => RegistryValue::RegDWord(Cursor::new(raw_value).read_le()?),
-            KeyValueDataType::RegDWordBigEndian => RegistryValue::RegDWordBigEndian(Cursor::new(raw_value).read_be()?),
-            KeyValueDataType::RegLink => RegistryValue::RegNone,
-            KeyValueDataType::RegMultiSZ => RegistryValue::RegMultiSZ(parse_reg_multi_sz(&raw_value[..])?),
-            KeyValueDataType::RegResourceList => RegistryValue::RegNone,
-            KeyValueDataType::RegFullResourceDescriptor => RegistryValue::RegNone,
-            KeyValueDataType::RegResourceRequirementsList => RegistryValue::RegNone,
-            KeyValueDataType::RegQWord => RegistryValue::RegQWord(Cursor::new(raw_value).read_le()?),
-            KeyValueDataType::RegFileTime => RegistryValue::RegFileTime,
-        };
-
-        Ok(result)
+        )
     }
 }
 

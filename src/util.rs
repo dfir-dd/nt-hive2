@@ -76,13 +76,46 @@ pub (crate) fn parse_timestamp<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions
     Ok(timestamp.to_datetime())
 }
 
+pub const U32_FIRST_BIT: u32 = 1 << (u32::BITS - 1);
+pub const INV_U32_FIRST_BIT: u32 = ! (1 << (u32::BITS - 1));
 pub (crate) trait HasFirstBitSet {
-    fn has_first_bit_set (val: Self) -> bool;
+    fn has_first_bit_set (val: &Self) -> bool;
 }
 
 impl HasFirstBitSet for u32 {
-    fn has_first_bit_set (val: Self) -> bool {
-        const FIRST_BIT: u32 = 1 << (u32::BITS - 1);
-        val & FIRST_BIT == FIRST_BIT
+    fn has_first_bit_set (val: &Self) -> bool {
+        val & U32_FIRST_BIT == U32_FIRST_BIT
+    }
+}
+
+pub(crate) const BIG_DATA_SEGMENT_SIZE: u32 = 16344;
+pub (crate) fn without_first_bit(val: u32) -> u32 {
+    val & INV_U32_FIRST_BIT
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_has_first_bit_set () {
+        assert!(u32::has_first_bit_set(& 0x8000_0000));
+        assert!(u32::has_first_bit_set(& 0xFFFF_FFFF));
+        assert!(! u32::has_first_bit_set(& 0x7FFF_FFFF));
+        assert!(! u32::has_first_bit_set(& 0));
+        assert!(! u32::has_first_bit_set(& 1));
+        assert!(! u32::has_first_bit_set(& (i32::MAX as u32)));
+    }
+
+    #[test]
+    fn test_without_first_bit() {
+        assert_eq!(0, without_first_bit(0));
+        assert_eq!(1, without_first_bit(1));
+        assert_eq!((i32::MAX as u32), without_first_bit(i32::MAX as u32));
+
+        assert_eq!(8, without_first_bit(0x8000_0008));
+        assert_eq!(16, without_first_bit(0x8000_0010));
+        assert_eq!(32, without_first_bit(0x8000_0020));
     }
 }
