@@ -2,7 +2,6 @@ use crate::CellHeader;
 use crate::sized_vec::SizedVec;
 use crate::util::*;
 use crate::Cell;
-use crate::Hive;
 use crate::Offset;
 
 use binread::BinResult;
