@@ -1,12 +1,12 @@
-use crate::CellHeader;
 use crate::sized_vec::SizedVec;
 use crate::util::*;
 use crate::Cell;
+use crate::CellHeader;
 use crate::Offset;
 
+use binread::derive_binread;
 use binread::BinResult;
 use binread::ReadOptions;
-use binread::derive_binread;
 use binread::{BinRead, BinReaderExt};
 use bitflags::bitflags;
 use std::fmt::Display;
@@ -45,7 +45,7 @@ bitflags! {
 
 #[derive(BinRead)]
 #[br(import(data_size: u32))]
-pub (crate) enum OffsetOrData {
+pub(crate) enum OffsetOrData {
     /// When the most significant bit is 1, data (4 bytes or less) is stored in
     /// the Data offset field directly (when data contains less than 4 bytes,
     /// it is being stored as is in the beginning of the Data offset field).
@@ -107,56 +107,70 @@ pub struct KeyValue {
     key_name_string: String,
 
     #[br(parse_with(parse_registry_value), args(&data_type, &offset_or_data, &data_size))]
-    value: RegistryValue
+    value: RegistryValue,
 }
 
-fn parse_registry_value<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, args: (&Option<KeyValueDataType>, &OffsetOrData, &u32)) -> BinResult<RegistryValue> {
+fn parse_registry_value<R: Read + Seek>(
+    reader: &mut R,
+    _ro: &ReadOptions,
+    args: (&Option<KeyValueDataType>, &OffsetOrData, &u32),
+) -> BinResult<RegistryValue> {
     let data_type: &Option<KeyValueDataType> = args.0;
     let offset_or_data: &OffsetOrData = args.1;
     let data_size: u32 = args.2 & INV_U32_FIRST_BIT;
 
-    Ok(
-        match offset_or_data {
-            OffsetOrData::U32Data(val) => RegistryValue::RegDWord(val.clone()),
-            OffsetOrData::U16Data(_, val) => RegistryValue::RegDWord(*val as u32),
-            OffsetOrData::U8Data(_, _, _, val) => RegistryValue::RegDWord(*val as u32),
-            OffsetOrData::None(_) => RegistryValue::RegNone,
-            OffsetOrData::Offset(offset) => {
-                match data_type {
-                    None                            => RegistryValue::RegUnknown,
-                    Some(KeyValueDataType::RegNone) => RegistryValue::RegUnknown,
-                    Some(dt)        => {
-                        let raw_value = if data_size > BIG_DATA_SEGMENT_SIZE {
-                            Vec::new()
-                        } else {
-                            // don't treat data as Big Data
-                            //eprintln!("reading data of size {} from offset {:08x}", self.data_size(), self.data_offset.val.0 + hive.data_offset());
-                            let _offset = reader.seek(SeekFrom::Start(offset.0.into()))?;
-                            let _header: CellHeader = reader.read_le()?;
-                            let data: SizedVec = reader.read_le_args((data_size as usize,))?;
-                            data.0
-                        }; 
+    Ok(match offset_or_data {
+        OffsetOrData::U32Data(val) => RegistryValue::RegDWord(val.clone()),
+        OffsetOrData::U16Data(_, val) => RegistryValue::RegDWord(*val as u32),
+        OffsetOrData::U8Data(_, _, _, val) => RegistryValue::RegDWord(*val as u32),
+        OffsetOrData::None(_) => RegistryValue::RegNone,
+        OffsetOrData::Offset(offset) => {
+            match data_type {
+                None => RegistryValue::RegUnknown,
+                Some(KeyValueDataType::RegNone) => RegistryValue::RegUnknown,
+                Some(dt) => {
+                    let raw_value = if data_size > BIG_DATA_SEGMENT_SIZE {
+                        Vec::new()
+                    } else {
+                        // don't treat data as Big Data
+                        //eprintln!("reading data of size {} from offset {:08x}", self.data_size(), self.data_offset.val.0 + hive.data_offset());
+                        let _offset = reader.seek(SeekFrom::Start(offset.0.into()))?;
+                        let _header: CellHeader = reader.read_le()?;
+                        let data: SizedVec = reader.read_le_args((data_size as usize,))?;
+                        data.0
+                    };
 
-                        match dt {
-                            KeyValueDataType::RegNone => RegistryValue::RegNone,
-                            KeyValueDataType::RegSZ => RegistryValue::RegSZ(parse_reg_sz(&raw_value[..])?),
-                            KeyValueDataType::RegExpandSZ => RegistryValue::RegExpandSZ(parse_reg_sz(&raw_value[..])?),
-                            KeyValueDataType::RegBinary => RegistryValue::RegBinary(raw_value),
-                            KeyValueDataType::RegDWord => RegistryValue::RegDWord(Cursor::new(raw_value).read_le()?),
-                            KeyValueDataType::RegDWordBigEndian => RegistryValue::RegDWordBigEndian(Cursor::new(raw_value).read_be()?),
-                            KeyValueDataType::RegLink => RegistryValue::RegNone,
-                            KeyValueDataType::RegMultiSZ => RegistryValue::RegMultiSZ(parse_reg_multi_sz(&raw_value[..])?),
-                            KeyValueDataType::RegResourceList => RegistryValue::RegNone,
-                            KeyValueDataType::RegFullResourceDescriptor => RegistryValue::RegNone,
-                            KeyValueDataType::RegResourceRequirementsList => RegistryValue::RegNone,
-                            KeyValueDataType::RegQWord => RegistryValue::RegQWord(Cursor::new(raw_value).read_le()?),
-                            KeyValueDataType::RegFileTime => RegistryValue::RegFileTime,
+                    match dt {
+                        KeyValueDataType::RegNone => RegistryValue::RegNone,
+                        KeyValueDataType::RegSZ => {
+                            RegistryValue::RegSZ(parse_reg_sz(&raw_value[..])?)
                         }
+                        KeyValueDataType::RegExpandSZ => {
+                            RegistryValue::RegExpandSZ(parse_reg_sz(&raw_value[..])?)
+                        }
+                        KeyValueDataType::RegBinary => RegistryValue::RegBinary(raw_value),
+                        KeyValueDataType::RegDWord => {
+                            RegistryValue::RegDWord(Cursor::new(raw_value).read_le()?)
+                        }
+                        KeyValueDataType::RegDWordBigEndian => {
+                            RegistryValue::RegDWordBigEndian(Cursor::new(raw_value).read_be()?)
+                        }
+                        KeyValueDataType::RegLink => RegistryValue::RegNone,
+                        KeyValueDataType::RegMultiSZ => {
+                            RegistryValue::RegMultiSZ(parse_reg_multi_sz(&raw_value[..])?)
+                        }
+                        KeyValueDataType::RegResourceList => RegistryValue::RegNone,
+                        KeyValueDataType::RegFullResourceDescriptor => RegistryValue::RegNone,
+                        KeyValueDataType::RegResourceRequirementsList => RegistryValue::RegNone,
+                        KeyValueDataType::RegQWord => {
+                            RegistryValue::RegQWord(Cursor::new(raw_value).read_le()?)
+                        }
+                        KeyValueDataType::RegFileTime => RegistryValue::RegFileTime,
                     }
                 }
-            },
+            }
         }
-    )
+    })
 }
 
 /// Possible data types of the data belonging to a [`KeyValue`].
@@ -164,37 +178,37 @@ fn parse_registry_value<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, args:
 #[derive(BinRead)]
 #[br(repr=u32)]
 pub enum KeyValueDataType {
-    /// Data with no particular type 
+    /// Data with no particular type
     RegNone = 0x0000_0000,
 
     /// A null-terminated string. This will be either a Unicode or an ANSI string, depending on whether you use the Unicode or ANSI functions.
     RegSZ = 0x0000_0001,
 
-    /// A null-terminated Unicode string, containing unexpanded references to environment variables, such as "%PATH%" 
+    /// A null-terminated Unicode string, containing unexpanded references to environment variables, such as "%PATH%"
     RegExpandSZ = 0x0000_0002,
 
-    /// Binary data in any form 
+    /// Binary data in any form
     RegBinary = 0x0000_0003,
 
-    /// A 4-byte numerical value 
+    /// A 4-byte numerical value
     RegDWord = 0x0000_0004,
 
-    /// A 4-byte numerical value whose least significant byte is at the highest address 
+    /// A 4-byte numerical value whose least significant byte is at the highest address
     RegDWordBigEndian = 0x0000_0005,
 
-    /// A Unicode string naming a symbolic link. This type is irrelevant to device and intermediate drivers 
+    /// A Unicode string naming a symbolic link. This type is irrelevant to device and intermediate drivers
     RegLink = 0x0000_0006,
 
-    /// An array of null-terminated strings, terminated by another zero 
+    /// An array of null-terminated strings, terminated by another zero
     RegMultiSZ = 0x0000_0007,
 
-    /// A device driver's list of hardware resources, used by the driver or one of the physical devices it controls, in the \ResourceMap tree 
+    /// A device driver's list of hardware resources, used by the driver or one of the physical devices it controls, in the \ResourceMap tree
     RegResourceList = 0x0000_0008,
 
-    /// A list of hardware resources that a physical device is using, detected and written into the \HardwareDescription tree by the system 
+    /// A list of hardware resources that a physical device is using, detected and written into the \HardwareDescription tree by the system
     RegFullResourceDescriptor = 0x0000_0009,
 
-    /// A device driver's list of possible hardware resources it or one of the physical devices it controls can use, from which the system writes a subset into the \ResourceMap tree 
+    /// A device driver's list of possible hardware resources it or one of the physical devices it controls can use, from which the system writes a subset into the \ResourceMap tree
     RegResourceRequirementsList = 0x0000_000a,
 
     /// A 64-bit number.
@@ -228,7 +242,9 @@ impl Display for RegistryValue {
             RegistryValue::RegNone => write!(f, "None"),
             RegistryValue::RegSZ(val) => write!(f, "\"{}\"", val),
             RegistryValue::RegExpandSZ(val) => write!(f, "\"{}\"", val),
-            RegistryValue::RegBinary(val) => write!(f, "{:?}", if val.len() > 16 {&val[..16]} else {val}),
+            RegistryValue::RegBinary(val) => {
+                write!(f, "{:?}", if val.len() > 16 { &val[..16] } else { val })
+            }
             RegistryValue::RegDWord(val) => write!(f, "dword:0x{:08x}", val),
             RegistryValue::RegDWordBigEndian(val) => write!(f, "dword:0x{:08x}", val),
             RegistryValue::RegLink(val) => write!(f, "\"{}\"", val),
@@ -253,11 +269,10 @@ impl KeyValue {
 
     pub fn data_size(&self) -> u32 {
         const FIRST_BIT: u32 = 1 << (u32::BITS - 1);
-        self.data_size & (! FIRST_BIT)
+        self.data_size & (!FIRST_BIT)
     }
 
-    pub fn value(&self) -> &RegistryValue
-    {
+    pub fn value(&self) -> &RegistryValue {
         &self.value
     }
 }
