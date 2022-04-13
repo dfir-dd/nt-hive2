@@ -1,3 +1,4 @@
+use crate::db::BigData;
 use crate::sized_vec::SizedVec;
 use crate::util::*;
 use crate::Cell;
@@ -130,7 +131,12 @@ fn parse_registry_value<R: Read + Seek>(
                 Some(KeyValueDataType::RegNone) => RegistryValue::RegUnknown,
                 Some(dt) => {
                     let raw_value = if data_size > BIG_DATA_SEGMENT_SIZE {
-                        Vec::new()
+                        log::debug!("expecting BIGDATA at 0x{:08x}", offset.0 + 4096);
+
+                        let _offset = reader.seek(SeekFrom::Start(offset.0.into()))?;
+                        let _header: CellHeader = reader.read_le()?;
+                        let bigdata: BigData = reader.read_le()?;
+                        bigdata.bytes
                     } else {
                         // don't treat data as Big Data
                         //eprintln!("reading data of size {} from offset {:08x}", self.data_size(), self.data_offset.val.0 + hive.data_offset());

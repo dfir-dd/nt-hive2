@@ -16,12 +16,27 @@ pub struct CellHeader {
     size: PosValue<i32>,
 }
 
+impl CellHeader {
+    pub fn raw_size(&self) -> i32 {
+        self.size.val
+    }
+
+    pub fn size(&self) -> usize {
+        self.size.val.abs().try_into().unwrap()
+    }
+
+    pub fn contents_size(&self) -> usize {
+        self.size() - std::mem::size_of_val(&self.size.val)
+    }
+}
+
 pub struct Cell<T>
 where
     T: BinRead, {
     header: CellHeader,
     data: T,
 }
+
 
 impl<H, B, T> FromOffset<H, B> for Cell<T>
 where

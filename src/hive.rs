@@ -81,14 +81,14 @@ where
 {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
         let new_offset = match pos {
-            SeekFrom::Start(dst) => self
+            SeekFrom::Start(dst) =>
+                self
                 .data
                 .seek(SeekFrom::Start(dst + self.data_offset as u64))?,
             SeekFrom::End(_) => self.data.seek(pos)?,
             SeekFrom::Current(_) => self.data.seek(pos)?,
         };
-        if new_offset <= self.data_offset as u64 {
-            assert!(false);
+        if new_offset < self.data_offset as u64 {
             return Err(std::io::Error::new(
                 ErrorKind::InvalidData,
                 format!("tried seek to invalid offset: {:?}", pos),
