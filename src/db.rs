@@ -1,7 +1,7 @@
-use binread::{derive_binread, ReadOptions, BinResult, BinReaderExt, FilePtr32};
-use std::io::{SeekFrom, Read, Seek};
+use binread::{derive_binread, ReadOptions, BinResult, FilePtr32};
+use std::io::{Read, Seek};
 
-use crate::{Offset, CellHeader, sized_vec::SizedVec};
+use crate::{CellHeader, sized_vec::CellWithU8List};
 
 pub const BIGDATA_MAX_SEGMENT_SIZE: u16 = 16344;
 
@@ -12,7 +12,7 @@ pub struct BigData {
     segments_count: u16,
 
     #[br(temp, deref_now, args(segments_count,))]
-    segments: FilePtr32<BigDataOffsetList>,
+    segments: FilePtr32<SegmentList>,
 
     #[br(parse_with=obtain_data_bytes, args(&segments,))]
     pub bytes: Vec<u8>
@@ -20,43 +20,29 @@ pub struct BigData {
 
 #[derive_binread]
 #[br(import(count:u16))]
-struct BigDataOffsetList {
+struct SegmentList {
     #[br(temp)]
     header: CellHeader,
 
     #[br(count=count)]
-    pub segments: Vec<Offset>
+    pub segments: Vec<FilePtr32<CellWithU8List>>
 }
 
 fn obtain_data_bytes<R: Read + Seek>(
-    reader: &mut R,
+    _reader: &mut R,
     _ro: &ReadOptions,
-    args: (&FilePtr32<BigDataOffsetList>,),
+    args: (&FilePtr32<SegmentList>,),
 ) -> BinResult<Vec<u8>> {
-    let offsets_ptr = args.0;
+    let segment_list = args.0.value.as_ref().unwrap();
 
-    match offsets_ptr.value {
-        None => Ok(Vec::new()),
-        Some(ref offset_list) => {
-            log::debug!("found {} offsets at 0x{:08x}:", offset_list.segments.len(), offsets_ptr.ptr + 4096);
-            for offset in &offset_list.segments {
-                log::debug!("  0x{:08x}", offset.0 as usize + 4096);
-            }
+    // allocate the maximum expected size of data
+    let mut res = Vec::with_capacity(0*segment_list.segments.len() * BIGDATA_MAX_SEGMENT_SIZE as usize);
 
-            // allocate the maximum expected size of data
-            let mut res = Vec::with_capacity(offset_list.segments.len() * BIGDATA_MAX_SEGMENT_SIZE as usize);
-        
-            for offset in &offset_list.segments {
-                log::debug!("reading data pointed to at 0x{:08x}", offset.0 as usize + 4096);
-                let _offset = reader.seek(SeekFrom::Start(offset.0.into()))?;
-                let header: CellHeader = reader.read_le()?;
-                let data: SizedVec = reader.read_le_args((header.contents_size(),))?;
-                res.extend(data.0);
-            }
-        
-            // possibly we have allocated too much space; freeing it now
-            res.shrink_to_fit();
-            Ok(res)
-        }
+    for item_ptr in &segment_list.segments {
+        let item = item_ptr.value.as_ref().unwrap();
+        let data: &Vec<u8> = &item.data;
+        res.extend(data);
     }
+    
+    Ok(res)
 }

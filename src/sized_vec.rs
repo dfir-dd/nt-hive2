@@ -1,7 +1,21 @@
 use std::mem;
-use binread::BinRead;
-use crate::Cell;
+use binread::{BinRead, derive_binread};
+use crate::{Cell, CellHeader};
 
+#[derive_binread]
+pub (crate) struct CellWithU8List {
+    #[br(temp)]
+    header: CellHeader,
+
+    #[br(count=header.contents_size())]
+    pub data: Vec<u8>
+}
+
+impl From<CellWithU8List> for Vec<u8> {
+    fn from(cell: CellWithU8List) -> Self {
+        cell.data
+    }
+}
 
 #[derive(BinRead)]
 #[br(import(count:usize))]

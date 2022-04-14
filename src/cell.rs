@@ -12,7 +12,7 @@ use std::ops::DerefMut;
 #[derive(BinRead)]
 pub struct CellHeader {
     // The cell size must be a multiple of 8 bytes
-    #[br(assert(*size%8 == 0))]
+    //#[br(assert(*size%8 == 0, "size {} is not divisible by 8", *size))]
     size: PosValue<i32>,
 }
 
@@ -26,6 +26,7 @@ impl CellHeader {
     }
 
     pub fn contents_size(&self) -> usize {
+        assert!(self.size() >= 4);
         self.size() - std::mem::size_of_val(&self.size.val)
     }
 }
