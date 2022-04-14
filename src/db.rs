@@ -1,7 +1,7 @@
 use binread::{derive_binread, ReadOptions, BinResult, FilePtr32};
 use std::io::{Read, Seek};
 
-use crate::{CellHeader, sized_vec::CellWithU8List};
+use crate::{CellHeader, cell_with_u8_list::CellWithU8List};
 
 pub const BIGDATA_MAX_SEGMENT_SIZE: u16 = 16344;
 

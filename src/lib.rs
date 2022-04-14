@@ -13,6 +13,6 @@ mod nk;
 mod vk;
 mod db;
 mod subkeys_list;
-mod sized_vec;
+mod cell_with_u8_list;
 
 pub use nk::KeyNode;

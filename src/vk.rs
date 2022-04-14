@@ -1,6 +1,6 @@
 
 use crate::db::BigData;
-use crate::sized_vec::SizedVec;
+use crate::cell_with_u8_list::CellWithU8List;
 use crate::util::*;
 use crate::Cell;
 use crate::CellHeader;
@@ -142,9 +142,8 @@ fn parse_registry_value<R: Read + Seek>(
                         // don't treat data as Big Data
                         //eprintln!("reading data of size {} from offset {:08x}", self.data_size(), self.data_offset.val.0 + hive.data_offset());
                         let _offset = reader.seek(SeekFrom::Start(offset.0.into()))?;
-                        let _header: CellHeader = reader.read_le()?;
-                        let data: SizedVec = reader.read_le_args((data_size as usize,))?;
-                        data.0
+                        let data: CellWithU8List = reader.read_le_args((Some(data_size as usize),))?;
+                        data.data
                     };
 
                     match dt {
