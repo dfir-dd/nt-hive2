@@ -24,7 +24,7 @@ struct SegmentList {
     #[br(temp)]
     header: CellHeader,
 
-    #[br(count=count)]
+    #[br(count=count, args(None,))]
     pub segments: Vec<FilePtr32<CellWithU8List>>
 }
 

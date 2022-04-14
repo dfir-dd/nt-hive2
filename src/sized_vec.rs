@@ -3,11 +3,12 @@ use binread::{BinRead, derive_binread};
 use crate::{Cell, CellHeader};
 
 #[derive_binread]
+#[br(import(count:Option<usize>))]
 pub (crate) struct CellWithU8List {
     #[br(temp)]
     header: CellHeader,
 
-    #[br(count=header.contents_size())]
+    #[br(count=count.or_else(|| Some(header.contents_size())).unwrap())]
     pub data: Vec<u8>
 }
 
