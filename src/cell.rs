@@ -1,5 +1,4 @@
 
-use binread::PosValue;
 use binread::{BinReaderExt, BinRead, BinResult};
 
 use crate::Hive;

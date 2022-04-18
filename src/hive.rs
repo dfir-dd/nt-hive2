@@ -1,8 +1,7 @@
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 
 use crate::nk::KeyNode;
-use crate::traits::FromOffset;
-use crate::{Cell};
+use crate::Cell;
 use binread::{BinRead, BinReaderExt, BinResult};
 
 pub struct Hive<B>
