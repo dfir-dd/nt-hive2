@@ -48,6 +48,7 @@ where
         T: BinRead<Args=()> + std::convert::From<crate::Cell<T, ()>>,
     {
         log::debug!("reading cell of type {} from offset {:08x} (was: {:08x})", std::any::type_name::<T>(), offset.0 + self.data_offset, offset.0);
+        
         self.seek(SeekFrom::Start(offset.0.into()))?;
         let cell: Cell<T, ()> = self.read_le().unwrap();
         assert!(cell.is_allocated());

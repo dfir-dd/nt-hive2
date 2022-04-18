@@ -9,6 +9,7 @@ edition = "2021"
 default = ["regdump"]
 regdump = ["env_logger", "std"]
 std = []
+log = [ "release_max_level_info" ]
 
 [[bin]]
 name = "regdump"
