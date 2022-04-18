@@ -47,23 +47,13 @@ where
     where
         T: BinRead<Args=()> + std::convert::From<crate::Cell<T, ()>>,
     {
-        log::debug!("reading cell of type {} from offset {:08x} (was: {:08x})", std::any::type_name::<T>(), offset.0 + self.data_offset, offset.0);
+        log::trace!("reading cell of type {} from offset {:08x} (was: {:08x})", std::any::type_name::<T>(), offset.0 + self.data_offset, offset.0);
         
         self.seek(SeekFrom::Start(offset.0.into()))?;
         let cell: Cell<T, ()> = self.read_le().unwrap();
         assert!(cell.is_allocated());
         Ok(cell.into())
     }
-    /*
-    pub fn read_structure_args<T>(&mut self, offset: Offset, args: T::Args) -> BinResult<T>
-    where
-        T: BinRead<Args=()> + std::convert::From<crate::Cell<T>>
-    {
-        let cell: Cell<T> = Cell::from_offset_args(self, offset, args)?;
-        assert!(cell.is_allocated());
-        Ok(cell.into())
-    }
-    */
 
     pub fn data_offset(&self) -> &u32 {
         &self.data_offset

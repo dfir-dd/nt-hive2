@@ -147,7 +147,7 @@ impl KeyNode
             SubKeysList::IndexRoot { items: _, ..} => "IndexRoot",
         });
 
-        log::debug!("{:?}", subkeys_list);
+        log::trace!("{:?}", subkeys_list);
 
         if subkeys_list.is_index_root() {
             log::debug!("reading indirect subkey lists");

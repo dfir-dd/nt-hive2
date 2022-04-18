@@ -3,7 +3,6 @@ use binread::{BinReaderExt, BinRead, BinResult};
 
 use crate::Hive;
 use crate::Offset;
-use crate::traits::FromOffset;
 use std::any::Any;
 use std::io::{Seek, SeekFrom};
 use std::ops::DerefMut;
@@ -40,29 +39,6 @@ where
 
     #[br(args_tuple(data_args))]
     data: T,
-}
-
-
-impl<H, B, T, A> FromOffset<H, B> for Cell<T, A>
-where
-    H: DerefMut<Target = Hive<B>>,
-    B: BinReaderExt,
-    T: BinRead<Args=A>,
-    A: Any + Copy {
-
-    fn from_offset(mut hive: H, offset: Offset) -> BinResult<Self> {
-        let _offset = hive.seek(SeekFrom::Start(offset.0.into())).unwrap();
-        log::debug!("seeked to 0x{:08x} (0x{:08x})", _offset, _offset + (*hive.data_offset() as u64));
-        let header: CellHeader = hive.read_le().unwrap();
-
-        let pos = hive.stream_position()?;
-        log::debug!("current position is 0x{:08x} (0x{:08x})", pos, pos + (*hive.data_offset() as u64));
-        let data: T = hive.read_le().unwrap();
-        Ok(Self {
-            header,
-            data,
-        })
-    }
 }
 
 impl<T, A> Cell<T, A> where T: BinRead<Args=A>, A: Any + Copy {

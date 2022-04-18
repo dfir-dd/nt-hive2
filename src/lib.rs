@@ -3,8 +3,6 @@ pub use hive::*;
 
 mod util;
 
-mod traits;
-
 mod cell;
 pub use cell::*;
 
