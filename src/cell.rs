@@ -6,7 +6,7 @@ use std::any::Any;
 #[derive(BinRead)]
 pub struct CellHeader {
     // The cell size must be a multiple of 8 bytes
-    //#[br(assert(*size%8 == 0, "size {} is not divisible by 8", *size))]
+    #[br(assert(size%8 == 0, "size {} is not divisible by 8", size))]
     size: i32,
 }
 
