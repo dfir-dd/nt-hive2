@@ -5,6 +5,7 @@ use binread::{BinReaderExt, BinRead, BinResult};
 use crate::Hive;
 use crate::Offset;
 use crate::traits::FromOffset;
+use std::any::Any;
 use std::io::{Seek, SeekFrom};
 use std::ops::DerefMut;
 
@@ -13,37 +14,42 @@ use std::ops::DerefMut;
 pub struct CellHeader {
     // The cell size must be a multiple of 8 bytes
     //#[br(assert(*size%8 == 0, "size {} is not divisible by 8", *size))]
-    size: PosValue<i32>,
+    size: i32,
 }
 
 impl CellHeader {
     pub fn raw_size(&self) -> i32 {
-        self.size.val
+        self.size
     }
 
     pub fn size(&self) -> usize {
-        self.size.val.abs().try_into().unwrap()
+        self.size.abs().try_into().unwrap()
     }
 
     pub fn contents_size(&self) -> usize {
         assert!(self.size() >= 4);
-        self.size() - std::mem::size_of_val(&self.size.val)
+        self.size() - std::mem::size_of_val(&self.size)
     }
 }
 
-pub struct Cell<T>
+#[derive(BinRead)]
+#[br(import_tuple(data_args: A))]
+pub struct Cell<T, A: Any + Copy>
 where
-    T: BinRead, {
+    T: BinRead<Args=A>, {
     header: CellHeader,
+
+    #[br(args_tuple(data_args))]
     data: T,
 }
 
 
-impl<H, B, T> FromOffset<H, B> for Cell<T>
+impl<H, B, T, A> FromOffset<H, B> for Cell<T, A>
 where
     H: DerefMut<Target = Hive<B>>,
     B: BinReaderExt,
-    T: BinRead {
+    T: BinRead<Args=A>,
+    A: Any + Copy {
 
     fn from_offset(mut hive: H, offset: Offset) -> BinResult<Self> {
         let _offset = hive.seek(SeekFrom::Start(offset.0.into())).unwrap();
@@ -60,17 +66,17 @@ where
     }
 }
 
-impl<T> Cell<T> where T: BinRead {
+impl<T, A> Cell<T, A> where T: BinRead<Args=A>, A: Any + Copy {
     pub fn is_deleted(&self) -> bool {
-        *self.header.size > 0
+        self.header.size > 0
     }
 
     pub fn is_allocated(&self) -> bool {
-        *self.header.size <= 0
+        self.header.size <= 0
     }
 
     pub fn contents_size(&self) -> u32 {
-        (*self.header.size).abs() as u32
+        (self.header.size).abs() as u32
     }
 
     pub fn data(&self) -> &T {
@@ -81,14 +87,14 @@ impl<T> Cell<T> where T: BinRead {
         self.data
     }
 
-    pub fn from_offset_args<H, B>(mut hive: H, offset: Offset, args: T::Args) -> BinResult<Cell<T>> where
+    pub fn from_offset_args<H, B>(mut hive: H, offset: Offset, args: T::Args) -> BinResult<Cell<T, A>> where
         H: DerefMut<Target = Hive<B>>,
         B: BinReaderExt
     {
         let _offset = hive.seek(SeekFrom::Start(offset.0.into()))?;
         let header: CellHeader = hive.read_le()?;
         let data: T = hive.read_le_args(args)?;
-        Ok(Cell::<T> {
+        Ok(Cell::<T, A> {
             header,
             data,
         })

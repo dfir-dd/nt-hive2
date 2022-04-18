@@ -67,8 +67,8 @@ impl SubKeysList {
     }
 }
 
-impl From<Cell<SubKeysList>> for SubKeysList {
-    fn from(cell: Cell<SubKeysList>) -> Self {
+impl From<Cell<SubKeysList, ()>> for SubKeysList {
+    fn from(cell: Cell<SubKeysList, ()>) -> Self {
         cell.into_data()
     }
 }

@@ -17,7 +17,7 @@ fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>)
     path.push(keynode.name().to_string());
     println!("\n[{}]; {}", path.join("\\"), keynode.timestamp());
 
-    print_values(hive, keynode)?;
+    print_values(keynode);
 
     for sk in keynode.subkeys(hive).unwrap() {
         print_key(hive, &sk, path)?;
@@ -27,11 +27,10 @@ fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>)
     Ok(())
 }
 
-fn print_values<RS>(hive: &mut Hive<RS>, keynode: &KeyNode) -> Result<()> where RS: Read + Seek {
-    for value in keynode.values(hive).unwrap() {
+fn print_values(keynode: &KeyNode) {
+    for value in keynode.values() {
         println!("\"{}\" = {}", value.name(), value.value());
     }
-    Ok(())
 }
 
 

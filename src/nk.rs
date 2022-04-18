@@ -1,5 +1,6 @@
 use std::io::Read;
 use std::io::Seek;
+use std::io::SeekFrom;
 
 use crate::Cell;
 use crate::Hive;
@@ -8,15 +9,17 @@ use crate::Offset;
 use crate::vk::KeyValueList;
 use crate::vk::KeyValue;
 use binread::BinResult;
+use binread::FilePtr32;
 use binread::ReadOptions;
-use binread::{BinRead, BinReaderExt};
+use binread::derive_binread;
+use binread::{BinReaderExt};
 use bitflags::bitflags;
 use chrono::DateTime;
 use chrono::Utc;
 use crate::util::{parse_string, parse_timestamp};
 
 #[allow(dead_code)]
-#[derive(BinRead)]
+#[derive_binread]
 #[br(magic = b"nk")]
 pub struct KeyNode {
     #[br(parse_with=parse_node_flags)]
@@ -27,23 +30,62 @@ pub struct KeyNode {
     access_bits: u32,
     parent: u32,
     subkey_count: u32,
+
+    #[br(temp)]
     volatile_subkey_count: u32,
     subkeys_list_offset: Offset,
+
+    #[br(temp)]
     volatile_subkeys_list_offset: Offset,
+
+    #[br(temp)]
     key_values_count: u32,
-    key_values_list_offset: Offset,
+
+    #[br(   if(key_values_count > 0),
+            deref_now,
+            restore_position,
+            args(key_values_count as usize))]
+    key_values_list: Option<FilePtr32<Cell<KeyValueList, (usize,)>>>,
+
+    #[br(temp)]
+    key_values_list_offset: u32,
+
+    #[br(temp)]
     key_security_offset: Offset,
+    
+    #[br(temp)]
     class_name_offset: Offset,
+
+    #[br(temp)]
     max_subkey_name: u32,
+
+    #[br(temp)]
     max_subkey_class_name: u32,
+
+    #[br(temp)]
     max_value_name: u32,
+
+    #[br(temp)]
     max_value_data: u32,
+
+    #[br(temp)]
     work_var: u32,
+
+    #[br(temp)]
     key_name_length: u16,
+
+    #[br(temp)]
     class_name_length: u16,
 
-    #[br(parse_with=parse_string, count=key_name_length, args(flags.contains(KeyNodeFlags::KEY_COMP_NAME)))]
+    #[br(   parse_with=parse_string,
+            count=key_name_length,
+            args(flags.contains(KeyNodeFlags::KEY_COMP_NAME)))]
     key_name_string: String,
+
+    #[br(   if(key_values_count > 0 && key_values_list_offset != u32::MAX),
+            parse_with=read_values,
+            args(key_values_list.as_ref(), ))]
+    values: Vec<KeyValue>,
 }
 
 fn parse_node_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
@@ -134,23 +176,36 @@ impl KeyNode
         }
     }
 
-    /// returns a list of all values of this very Key Node
-    pub fn values<B>(&self, hive: &mut Hive<B>) -> BinResult<Vec<KeyValue>> where B: BinReaderExt {
-        let mut result = Vec::with_capacity(self.key_values_count as usize);
-        if self.key_values_count > 0 && self.key_values_list_offset.0 != u32::MAX {
-            let kv_list: KeyValueList = hive.read_structure_args(self.key_values_list_offset, (self.key_values_count,)).unwrap();
-
-            for offset in kv_list.key_value_offsets.iter() {
-                log::debug!("reading KeyValue from {} (0x{:08x})", offset.0 + hive.data_offset(), offset.0 + hive.data_offset());
-                result.push(hive.read_structure(*offset).unwrap());
-            }
-        }
-        Ok(result)
+    pub fn values(&self) -> &Vec<KeyValue> {
+        &self.values
     }
 }
 
-impl From<Cell<KeyNode>> for KeyNode {
-    fn from(cell: Cell<KeyNode>) -> Self {
+fn read_values<R: Read + Seek>(
+    reader: &mut R,
+    _ro: &ReadOptions,
+    args: (Option<&FilePtr32<Cell<KeyValueList, (usize,)>>>, ),
+) -> BinResult<Vec<KeyValue>> {
+    Ok(match args.0 {
+        None => Vec::new(),
+        Some(key_values_list) => match &key_values_list.value {
+            None => Vec::new(),
+            Some(kv_list_cell) => {
+                let kv_list: &KeyValueList = kv_list_cell.data();
+                let mut result = Vec::with_capacity(kv_list.key_value_offsets.len() as usize);
+                for offset in kv_list.key_value_offsets.iter() {
+                    reader.seek(SeekFrom::Start(offset.0.into()))?;
+                    let vk: Cell<KeyValue, ()> = reader.read_le().unwrap();
+                    result.push(vk.into());
+                }
+                result
+            }
+        }
+    })
+}
+
+impl From<Cell<KeyNode, ()>> for KeyNode {
+    fn from(cell: Cell<KeyNode, ()>) -> Self {
         cell.into_data()
     }
 }

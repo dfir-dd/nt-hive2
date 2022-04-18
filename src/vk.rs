@@ -18,14 +18,14 @@ use std::io::Seek;
 use std::io::SeekFrom;
 
 #[derive(BinRead)]
-#[br(import(count: u32))]
+#[br(import(count: usize))]
 pub struct KeyValueList {
     #[br(count=count)]
     pub key_value_offsets: Vec<Offset>,
 }
 
-impl From<Cell<KeyValueList>> for KeyValueList {
-    fn from(cell: Cell<KeyValueList>) -> Self {
+impl From<Cell<KeyValueList, (usize, )>> for KeyValueList {
+    fn from(cell: Cell<KeyValueList, (usize, )>) -> Self {
         cell.into_data()
     }
 }
@@ -292,8 +292,8 @@ fn parse_value_flags<R: Read + Seek>(
     Ok(KeyValueFlags::from_bits_truncate(raw_value))
 }
 
-impl From<Cell<KeyValue>> for KeyValue {
-    fn from(cell: Cell<KeyValue>) -> Self {
+impl From<Cell<KeyValue, ()>> for KeyValue {
+    fn from(cell: Cell<KeyValue, ()>) -> Self {
         cell.into_data()
     }
 }
