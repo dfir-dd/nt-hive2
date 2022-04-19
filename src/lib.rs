@@ -13,5 +13,5 @@ mod db;
 mod subkeys_list;
 mod cell_with_u8_list;
 
-pub use nk::KeyNode;
+pub use nk::{KeyNode, SubPath};
 pub use vk::{KeyValue, RegistryValue};
