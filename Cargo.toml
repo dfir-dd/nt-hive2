@@ -3,7 +3,8 @@ name = "nt_hive2"
 version = "0.1.0"
 edition = "2021"
 author = "Jan Starke <jan.starke@posteo.de>"
-LICENSE = "GPLv3"
+license = "GPLv3"
+description = "forensic parser library for Windows registry hive files"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
