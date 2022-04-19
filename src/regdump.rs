@@ -43,8 +43,8 @@ fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>)
 
     print_values(keynode);
 
-    for sk in keynode.subkeys(hive).unwrap() {
-        print_key(hive, &sk, path)?;
+    for sk in keynode.subkeys(hive).unwrap().iter() {
+        print_key(hive, &sk.borrow(), path)?;
     }
     path.pop();
 

@@ -1,6 +1,9 @@
+use std::cell::Ref;
+use std::cell::RefCell;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
+use std::rc::Rc;
 
 use crate::Cell;
 use crate::Hive;
@@ -86,6 +89,9 @@ pub struct KeyNode {
             parse_with=read_values,
             args(key_values_list.as_ref(), ))]
     values: Vec<KeyValue>,
+
+    #[br(default)]
+    subkeys: Rc<RefCell<Vec<Rc<RefCell<Self>>>>>
 }
 
 fn parse_node_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
@@ -131,7 +137,19 @@ impl KeyNode
         &self.timestamp
     }
 
-    pub fn subkeys<'a, B>(&'a self, hive: &mut Hive<B>) -> BinResult<Vec<Self>> where B: BinReaderExt{
+    pub fn subkey_count(&self) -> u32 {
+        self.subkey_count
+    }
+
+    pub fn subkeys<B>(&self, hive: &mut Hive<B>) -> BinResult<Ref<Vec<Rc<RefCell<Self>>>>> where B: BinReaderExt {
+        if self.subkeys.borrow().is_empty() && self.subkey_count() > 0 {
+            let sk = self.read_subkeys(hive)?;
+            *self.subkeys.borrow_mut() = sk;
+        }
+        Ok(self.subkeys.borrow())
+    }
+
+    fn read_subkeys<B>(&self, hive: &mut Hive<B>) -> BinResult<Vec<Rc<RefCell<Self>>>> where B: BinReaderExt {
         let offset = self.subkeys_list_offset;
 
         if offset.0 == u32::MAX{
@@ -157,7 +175,7 @@ impl KeyNode
 
                 let subkeys: BinResult<Vec<_>> = subsubkeys_list.into_offsets().map(|o2| {
                     let nk: KeyNode = hive.read_structure(o2)?;
-                    Ok(nk)
+                    Ok(Rc::new(RefCell::new(nk)))
                 }).collect();
                 subkeys
             }).collect();
@@ -170,11 +188,39 @@ impl KeyNode
             log::debug!("reading single subkey list");
             let subkeys: BinResult<Vec<_>> = subkeys_list.into_offsets().map(|offset| {
                 let nk: KeyNode = hive.read_structure(offset)?;
-                Ok(nk)
+                Ok(Rc::new(RefCell::new(nk)))
             }).collect();
             subkeys
         }
     }
+
+
+    pub fn subpath<B>(&self, path: &str, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+        let path_parts: Vec<_> = path.split('\\').rev().collect();
+        self.subpath_parts(path_parts, hive)
+    }
+
+    fn subpath_parts<B>(&self, mut path_parts: Vec<&str>, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+        if let Some(first) = path_parts.pop() {
+            if let Some(top) = self.subkey(first, hive)? {
+                return if path_parts.is_empty() {
+                    Ok(Some(top))
+                } else {
+                    self.subpath_parts(path_parts, hive)
+                };
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn subkey<B>(&self, name: &str, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+        let subkey = self.subkeys(hive)?
+            .iter()
+            .find(|s|s.borrow().name() == name)
+            .map(|kn| Rc::clone(kn));
+        Ok(subkey)
+    }
+
 
     pub fn values(&self) -> &Vec<KeyValue> {
         &self.values
@@ -222,8 +268,8 @@ mod tests {
         assert!(hive.enum_subkeys(|hive, k: &KeyNode| {
             assert_eq!(k.name(), "ROOT");
 
-            for sk in k.subkeys(hive).unwrap() {
-                println!("{}", sk.name());
+            for sk in k.subkeys(hive).unwrap().iter() {
+                println!("{}", sk.borrow().name());
             }
 
             Ok(())
