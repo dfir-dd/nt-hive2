@@ -194,6 +194,7 @@ impl KeyNode
         }
     }
     
+
     fn subpath_parts<B>(&self, mut path_parts: Vec<&str>, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
         if let Some(first) = path_parts.pop() {
             if let Some(top) = self.subkey(first, hive)? {
@@ -232,6 +233,12 @@ impl SubPath<&str> for KeyNode {
     }
 }
 
+impl SubPath<&String> for KeyNode {
+    fn subpath<B>(&self, path: &String, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+        let path_parts: Vec<_> = path.split('\\').rev().collect();
+        self.subpath_parts(path_parts, hive)
+    }
+}
 
 impl SubPath<&Vec<&str>> for KeyNode {
     fn subpath<B>(&self, path: &Vec<&str>, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
