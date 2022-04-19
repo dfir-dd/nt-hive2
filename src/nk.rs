@@ -247,6 +247,13 @@ impl SubPath<&Vec<&str>> for KeyNode {
     }
 }
 
+impl SubPath<&Vec<String>> for KeyNode {
+    fn subpath<B>(&self, path: &Vec<String>, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+        let path_parts: Vec<_> = path.iter().rev().map(|s| &s[..]).collect();
+        self.subpath_parts(path_parts, hive)
+    }
+}
+
 
 fn read_values<R: Read + Seek>(
     reader: &mut R,
