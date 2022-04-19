@@ -196,12 +196,13 @@ impl KeyNode
     
 
     fn subpath_parts<B>(&self, mut path_parts: Vec<&str>, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+        eprintln!("subpath_parts({:?}): BEGIN", path_parts);
         if let Some(first) = path_parts.pop() {
             if let Some(top) = self.subkey(first, hive)? {
                 return if path_parts.is_empty() {
                     Ok(Some(top))
                 } else {
-                    self.subpath_parts(path_parts, hive)
+                    top.borrow().subpath_parts(path_parts, hive)
                 };
             }
         }
