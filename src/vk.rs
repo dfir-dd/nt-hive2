@@ -71,10 +71,11 @@ pub(crate) enum OffsetOrData {
     Offset(Offset),
 }
 
+/// Represents a KeyValue as documented in <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#key-value>.
+/// 
 #[derive_binread]
 #[br(magic = b"vk")]
 #[allow(dead_code)]
-/// https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#key-value
 pub struct KeyValue {
     name_length: u16,
 
@@ -89,7 +90,7 @@ pub struct KeyValue {
     /// There are also Types that do not have a value that corresponds to
     /// anything in the list above. These are typically seen in the SAM
     /// Registry hives and often correspond to part of a users SID
-    /// https://binaryforay.blogspot.com/2015/01/registry-hive-basics-part-3-vk-records.html
+    /// <https://binaryforay.blogspot.com/2015/01/registry-hive-basics-part-3-vk-records.html>
     #[br(try)]
     data_type: Option<KeyValueDataType>,
 
@@ -265,19 +266,23 @@ impl Display for RegistryValue {
 }
 
 impl KeyValue {
+    /// Returns the name of this value
     pub fn name(&self) -> &str {
         &self.key_name_string
     }
 
+    /// Returns [true] if this value is resident, which means that it is stored directly in the offset field.
     pub fn is_resident(&self) -> bool {
         u32::has_first_bit_set(&self.data_size)
     }
 
+    /// Returns the size of the data
     pub fn data_size(&self) -> u32 {
         const FIRST_BIT: u32 = 1 << (u32::BITS - 1);
         self.data_size & (!FIRST_BIT)
     }
 
+    /// Returns the referenced value
     pub fn value(&self) -> &RegistryValue {
         &self.value
     }

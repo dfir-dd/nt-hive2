@@ -4,6 +4,15 @@ use crate::nk::KeyNode;
 use crate::Cell;
 use binread::{BinRead, BinReaderExt, BinResult};
 
+/// Represents a registry hive file.
+/// 
+/// Because most offsets in a registry hive file are relative to the start of the hive bins data,
+/// this struct provides a own [Seek] and [Read] implementation, which can work directly
+/// with those kinds of offsets. You don't know where the hive bins data starts, because [Hive] knows
+/// it (this information is stored in the hive base block). To parse data from within the hive bins data,
+/// use [Hive] as reader and use offsets read from the hive data structures.
+/// 
+/// The structure of hive files is documented at <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#format-of-primary-files>
 pub struct Hive<B>
 where
     B: BinReaderExt,
@@ -13,6 +22,7 @@ where
     data_offset: u32,
 }
 
+/// represents an offset (usually a 32bit value) used in registry hive files
 #[derive(BinRead, Debug, Clone, Copy)]
 pub struct Offset(pub u32);
 
@@ -20,6 +30,8 @@ impl<B> Hive<B>
 where
     B: BinReaderExt,
 {
+    /// creates a new [Hive] object. This includes parsing the HiveBaseBlock and determining
+    /// the start of the hive bins data.
     pub fn new(mut data: B) -> BinResult<Self> {
         data.seek(SeekFrom::Start(0))?;
         let base_block: HiveBaseBlock = data.read_le().unwrap();
@@ -32,17 +44,36 @@ where
         })
     }
 
+    /// Is this really needed???
     pub fn enum_subkeys(&mut self, callback: fn(&mut Self, &KeyNode) -> BinResult<()>) -> BinResult<()> {
         let root_key_node = self.root_key_node()?;
         callback(self, &root_key_node)?;
         Ok(())
     }
 
+    /// returns the root key of this registry hive file
     pub fn root_key_node(&mut self) -> BinResult<KeyNode> {
         self.read_structure(self.base_block.root_cell_offset)
     }
 
-    
+    /// reads a data structure from the given offset. Read the documentation of [Cell]
+    /// for a detailled discussion
+    /// 
+    /// # Usage
+    /// 
+    /// ```
+    /// # use std::error::Error;
+    /// # use std::fs::File;
+    /// use nt_hive2::*;
+    /// 
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # let hive_file = File::open("tests/data/testhive")?;
+    /// # let mut hive = Hive::new(hive_file)?;
+    /// # let offset = hive.root_cell_offset();
+    /// let my_node: KeyNode = hive.read_structure(offset)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn read_structure<T>(&mut self, offset: Offset) -> BinResult<T>
     where
         T: BinRead<Args=()> + std::convert::From<crate::Cell<T, ()>>,
@@ -55,8 +86,14 @@ where
         Ok(cell.into())
     }
 
+    /// returns the start of the hive bins data
     pub fn data_offset(&self) -> &u32 {
         &self.data_offset
+    }
+
+    /// returns the offset of the root cell
+    pub fn root_cell_offset(&self) -> Offset {
+        self.base_block.root_cell_offset
     }
 }
 
@@ -126,22 +163,4 @@ struct HiveBaseBlock {
     padding_2: Vec<u32>,
     boot_type: u32,
     boot_recover: u32,
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-    use std::io;
-
-    #[test]
-    fn load_hive() {
-        let testhive = crate::helpers::tests::testhive_vec();
-        let mut hive = Hive::new(io::Cursor::new(testhive)).unwrap();
-        assert!(hive
-            .enum_subkeys(|_, k| {
-                assert_eq!(k.name(), "ROOT");
-                Ok(())
-            })
-            .is_ok());
-    }
 }

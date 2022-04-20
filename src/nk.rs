@@ -21,6 +21,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use crate::util::{parse_string, parse_timestamp};
 
+/// represents a registry key node (as documented in <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#key-node>)
 #[allow(dead_code)]
 #[derive_binread]
 #[br(magic = b"nk")]
@@ -133,14 +134,19 @@ impl KeyNode
         &self.key_name_string
     }
 
+    /// Returns the time when this node has been written last.
     pub fn timestamp(&self) -> &DateTime<Utc> {
         &self.timestamp
     }
 
+    /// Returns the number of subkeys
     pub fn subkey_count(&self) -> u32 {
         self.subkey_count
     }
 
+    /// Returns a list of subkeys.
+    /// 
+    /// This function caches the subkeys, so the first call to this function might be slower.
     pub fn subkeys<B>(&self, hive: &mut Hive<B>) -> BinResult<Ref<Vec<Rc<RefCell<Self>>>>> where B: BinReaderExt {
         if self.subkeys.borrow().is_empty() && self.subkey_count() > 0 {
             let sk = self.read_subkeys(hive)?;
@@ -209,6 +215,7 @@ impl KeyNode
         Ok(None)
     }
 
+    /// returns the subkey with a given `name`, of [None] if there is no such subkey.
     pub fn subkey<B>(&self, name: &str, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
         let subkey = self.subkeys(hive)?
             .iter()
@@ -217,7 +224,7 @@ impl KeyNode
         Ok(subkey)
     }
 
-
+    /// returns the list of all [KeyValue]s of this key
     pub fn values(&self) -> &Vec<KeyValue> {
         &self.values
     }
@@ -284,25 +291,3 @@ impl From<Cell<KeyNode, ()>> for KeyNode {
         cell.into_data()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-    use std::io;
-
-    #[test]
-    fn enum_subkeys() {
-        let testhive = crate::helpers::tests::testhive_vec();
-        let mut hive = Hive::new(io::Cursor::new(testhive)).unwrap();
-        assert!(hive.enum_subkeys(|hive, k: &KeyNode| {
-            assert_eq!(k.name(), "ROOT");
-
-            for sk in k.subkeys(hive).unwrap().iter() {
-                println!("{}", sk.borrow().name());
-            }
-
-            Ok(())
-        }).is_ok());
-    }
-}
-
