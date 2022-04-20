@@ -5,6 +5,7 @@ edition = "2021"
 author = "Jan Starke <jan.starke@posteo.de>"
 license = "GPL-3.0"
 description = "forensic parser library for Windows registry hive files"
+repository = "https://github.com/janstarke/nt-hive2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
