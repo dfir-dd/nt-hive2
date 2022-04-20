@@ -21,6 +21,7 @@ about = "Dumps a registry hive file"
 
 [lib]
 name = "nt_hive2"
+path = "src/lib.rs"
 
 [dependencies]
 binread = "2.2"
