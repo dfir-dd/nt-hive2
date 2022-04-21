@@ -11,6 +11,8 @@ use crate::subkeys_list::*;
 use crate::Offset;
 use crate::vk::KeyValueList;
 use crate::vk::KeyValue;
+use crate::vk::KeyValueWithMagic;
+use binread::BinRead;
 use binread::BinResult;
 use binread::FilePtr32;
 use binread::ReadOptions;
@@ -21,10 +23,14 @@ use chrono::DateTime;
 use chrono::Utc;
 use crate::util::{parse_string, parse_timestamp};
 
+
+#[derive(BinRead)]
+#[br(magic = b"nk")]
+pub struct KeyNodeWithMagic(KeyNode);
+
 /// represents a registry key node (as documented in <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#key-node>)
 #[allow(dead_code)]
 #[derive_binread]
-#[br(magic = b"nk")]
 pub struct KeyNode {
     #[br(parse_with=parse_node_flags)]
     flags: KeyNodeFlags,
@@ -180,8 +186,8 @@ impl KeyNode
                 assert!(!subsubkeys_list.is_index_root());
 
                 let subkeys: BinResult<Vec<_>> = subsubkeys_list.into_offsets().map(|o2| {
-                    let nk: KeyNode = hive.read_structure(o2)?;
-                    Ok(Rc::new(RefCell::new(nk)))
+                    let nk: KeyNodeWithMagic = hive.read_structure(o2)?;
+                    Ok(Rc::new(RefCell::new(nk.0)))
                 }).collect();
                 subkeys
             }).collect();
@@ -193,8 +199,8 @@ impl KeyNode
         } else {
             log::debug!("reading single subkey list");
             let subkeys: BinResult<Vec<_>> = subkeys_list.into_offsets().map(|offset| {
-                let nk: KeyNode = hive.read_structure(offset)?;
-                Ok(Rc::new(RefCell::new(nk)))
+                let nk: KeyNodeWithMagic = hive.read_structure(offset)?;
+                Ok(Rc::new(RefCell::new(nk.0)))
             }).collect();
             subkeys
         }
@@ -276,7 +282,7 @@ fn read_values<R: Read + Seek>(
                 let mut result = Vec::with_capacity(kv_list.key_value_offsets.len() as usize);
                 for offset in kv_list.key_value_offsets.iter() {
                     reader.seek(SeekFrom::Start(offset.0.into()))?;
-                    let vk: Cell<KeyValue, ()> = reader.read_le().unwrap();
+                    let vk: Cell<KeyValueWithMagic, ()> = reader.read_le().unwrap();
                     result.push(vk.into());
                 }
                 result
@@ -285,8 +291,14 @@ fn read_values<R: Read + Seek>(
     })
 }
 
-impl From<Cell<KeyNode, ()>> for KeyNode {
-    fn from(cell: Cell<KeyNode, ()>) -> Self {
+impl From<Cell<KeyNodeWithMagic, ()>> for KeyNodeWithMagic {
+    fn from(cell: Cell<KeyNodeWithMagic, ()>) -> Self {
         cell.into_data()
+    }
+}
+
+impl From<KeyNodeWithMagic> for KeyNode {
+    fn from(mkn: KeyNodeWithMagic) -> Self {
+        mkn.0
     }
 }

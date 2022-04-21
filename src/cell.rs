@@ -67,8 +67,11 @@ impl CellHeader {
 /// # let mut hive = Hive::new(hive_file)?;
 /// # let offset = hive.root_cell_offset();
 /// hive.seek(SeekFrom::Start(offset.0.into()))?;
-/// let cell: Cell<KeyNode, ()> = hive.read_le().unwrap();
-/// let my_node: KeyNode = cell.into();
+/// let cell: Cell<KeyNodeWithMagic, ()> = hive.read_le().unwrap();
+/// let my_node: KeyNode = {
+///     let knwm: KeyNodeWithMagic = cell.into();
+///     knwm.into()
+/// };
 /// # Ok(())
 /// # }
 /// ```

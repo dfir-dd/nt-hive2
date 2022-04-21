@@ -1,6 +1,7 @@
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 
-use crate::nk::KeyNode;
+use crate::nk::KeyNodeWithMagic;
+use crate::{nk::KeyNode, CellIterator};
 use crate::Cell;
 use binread::{BinRead, BinReaderExt, BinResult};
 
@@ -53,7 +54,8 @@ where
 
     /// returns the root key of this registry hive file
     pub fn root_key_node(&mut self) -> BinResult<KeyNode> {
-        self.read_structure(self.base_block.root_cell_offset)
+        let mkn: KeyNodeWithMagic = self.read_structure(self.base_block.root_cell_offset)?;
+        Ok(mkn.into())
     }
 
     /// reads a data structure from the given offset. Read the documentation of [Cell]
@@ -70,7 +72,7 @@ where
     /// # let hive_file = File::open("tests/data/testhive")?;
     /// # let mut hive = Hive::new(hive_file)?;
     /// # let offset = hive.root_cell_offset();
-    /// let my_node: KeyNode = hive.read_structure(offset)?;
+    /// let my_node: KeyNodeWithMagic = hive.read_structure(offset)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -94,6 +96,10 @@ where
     /// returns the offset of the root cell
     pub fn root_cell_offset(&self) -> Offset {
         self.base_block.root_cell_offset
+    }
+
+    pub fn into_cell_iterator(self) -> CellIterator<B> {
+        CellIterator::new(self)
     }
 }
 

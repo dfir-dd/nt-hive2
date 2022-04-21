@@ -74,7 +74,7 @@ impl From<Cell<SubKeysList, ()>> for SubKeysList {
 }
 
 #[derive(BinRead, Debug)]
-pub(crate) struct HashLeafItem {
+pub struct HashLeafItem {
     key_node_offset: Offset,
 
     #[allow(unused)]
@@ -82,7 +82,7 @@ pub(crate) struct HashLeafItem {
 }
 
 #[derive(BinRead, Debug)]
-pub(crate) struct FastLeafItem {
+pub struct FastLeafItem {
     key_node_offset: Offset,
 
     #[allow(unused)]
@@ -90,11 +90,11 @@ pub(crate) struct FastLeafItem {
 }
 
 #[derive(BinRead, Debug)]
-pub(crate) struct IndexRootListElement {
+pub struct IndexRootListElement {
     subkeys_list_offset: Offset
 }
 
 #[derive(BinRead, Debug)]
-pub(crate) struct IndexLeafItem {
+pub struct IndexLeafItem {
     key_node_offset: Offset,
 }

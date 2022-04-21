@@ -1,6 +1,6 @@
 [package]
 name = "nt_hive2"
-version = "0.1.2"
+version = "1.0.0"
 edition = "2021"
 author = "Jan Starke <jan.starke@posteo.de>"
 license = "GPL-3.0"
@@ -10,14 +10,22 @@ repository = "https://github.com/janstarke/nt-hive2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["regdump"]
+default = ["cli"]
+cli = ["regdump", "hivescan"]
 regdump = ["simplelog", "std", "clap", "clap-verbosity-flag"]
+hivescan = ["simplelog", "std", "clap", "clap-verbosity-flag"]
 std = []
 
 [[bin]]
 name = "regdump"
 path = "src/regdump.rs"
 required-features = ["regdump"]
+about = "Dumps a registry hive file"
+
+[[bin]]
+name = "hivescan"
+path = "src/hivescan.rs"
+required-features = ["hivescan"]
 about = "Dumps a registry hive file"
 
 [lib]

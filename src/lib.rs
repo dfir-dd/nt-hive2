@@ -29,6 +29,7 @@
 //! ```
 
 mod hive;
+mod hivebin;
 mod util;
 mod cell;
 mod nk;
@@ -36,8 +37,10 @@ mod vk;
 mod db;
 mod subkeys_list;
 mod cell_with_u8_list;
+mod cell_iterator;
 
 pub use cell::*;
+pub use cell_iterator::{CellIterator, CellLookAhead, CellSelector};
 pub use hive::{Hive, Offset};
-pub use nk::{KeyNode, SubPath};
-pub use vk::{KeyValue, RegistryValue};
+pub use nk::{KeyNode, KeyNodeWithMagic, SubPath};
+pub use vk::{KeyValue, KeyValueWithMagic, RegistryValue};

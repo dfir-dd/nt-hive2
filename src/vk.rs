@@ -71,10 +71,13 @@ pub(crate) enum OffsetOrData {
     Offset(Offset),
 }
 
+#[derive(BinRead)]
+#[br(magic = b"vk")]
+pub struct KeyValueWithMagic(KeyValue);
+
 /// Represents a KeyValue as documented in <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#key-value>.
 /// 
 #[derive_binread]
-#[br(magic = b"vk")]
 #[allow(dead_code)]
 pub struct KeyValue {
     name_length: u16,
@@ -297,8 +300,8 @@ fn parse_value_flags<R: Read + Seek>(
     Ok(KeyValueFlags::from_bits_truncate(raw_value))
 }
 
-impl From<Cell<KeyValue, ()>> for KeyValue {
-    fn from(cell: Cell<KeyValue, ()>) -> Self {
-        cell.into_data()
+impl From<Cell<KeyValueWithMagic, ()>> for KeyValue {
+    fn from(cell: Cell<KeyValueWithMagic, ()>) -> Self {
+        cell.into_data().0
     }
 }
