@@ -95,9 +95,5 @@ fn scan_hive(hive: Hive<File>) -> Result<()> {
             */
         }
     }
-
-    println!("");
-    println!("found {} deleted and {} allocated KeyNodes", count_nk.deleted, count_nk.allocated);
-    println!("found {} deleted and {} allocated KeyValues", count_vk.deleted, count_vk.allocated);
     Ok(())
 }
