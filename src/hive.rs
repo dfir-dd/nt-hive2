@@ -98,8 +98,12 @@ where
         self.base_block.root_cell_offset
     }
 
-    pub fn into_cell_iterator(self) -> CellIterator<B> {
-        CellIterator::new(self)
+    pub fn into_cell_iterator<C>(self, callback: C) -> CellIterator<B, C> where C: Fn(u64) -> () {
+        CellIterator::new(self, callback)
+    }
+
+    pub fn data_size(&self) -> u32 {
+        self.base_block.data_size
     }
 }
 

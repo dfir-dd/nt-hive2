@@ -282,8 +282,13 @@ fn read_values<R: Read + Seek>(
                 let mut result = Vec::with_capacity(kv_list.key_value_offsets.len() as usize);
                 for offset in kv_list.key_value_offsets.iter() {
                     reader.seek(SeekFrom::Start(offset.0.into()))?;
-                    let vk: Cell<KeyValueWithMagic, ()> = reader.read_le().unwrap();
-                    result.push(vk.into());
+                    let vk_result: BinResult<Cell<KeyValueWithMagic, ()>> = reader.read_le();
+                    match vk_result {
+                        Ok(vk) => result.push(vk.into()),
+                        Err(why) => {
+                            log::debug!("error while parsing KeyValue: {}", why);
+                        }
+                    }
                 }
                 result
             }

@@ -3,6 +3,7 @@ use simplelog::{SimpleLogger, Config};
 use std::fs::File;
 use anyhow::Result;
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -36,22 +37,30 @@ struct Counter {
     pub allocated: usize
 }
 
-fn scan_hive(mut hive: Hive<File>) -> Result<()> {
-    let iterator = hive.into_cell_iterator();
+fn scan_hive(hive: Hive<File>) -> Result<()> {
+    let progress_style = ProgressStyle::default_bar()
+        .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>9}/{len:9}({percent}%) {msg}");
+    let bar = ProgressBar::new(hive.data_size().into());
+    bar.set_style(progress_style);
+
+    bar.set_message("scanning cells");
+    
+    let iterator = hive
+        .into_cell_iterator(|p| bar.set_position(p));
 
     let mut count_nk = Counter::default();
     let mut count_vk = Counter::default();
 
     for cell in iterator {
         match cell.content() {
-            CellLookAhead::NK(nk) => {
+            CellLookAhead::NK(_nk) => {
                 if cell.header().is_deleted() {
                     count_nk.deleted += 1;
                 } else {
                     count_nk.allocated += 1;
                 }
             }
-            CellLookAhead::VK(vk) => {
+            CellLookAhead::VK(_vk) => {
                 if cell.header().is_deleted() {
                     count_vk.deleted += 1;
                 } else {
@@ -70,6 +79,7 @@ fn scan_hive(mut hive: Hive<File>) -> Result<()> {
         }
     }
 
+    println!("");
     println!("found {} deleted and {} allocated KeyNodes", count_nk.deleted, count_nk.allocated);
     println!("found {} deleted and {} allocated KeyValues", count_vk.deleted, count_vk.allocated);
     Ok(())

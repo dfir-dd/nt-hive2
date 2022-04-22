@@ -11,7 +11,7 @@ use crate::*;
 #[derive_binread]
 pub struct CellHeader {
     // The cell size must be a multiple of 8 bytes
-    #[br(temp, assert(raw_size%8 == 0, "size {} is not divisible by 8", raw_size))]
+    #[br(temp)]
     raw_size: i32,
 
     #[br(calc(raw_size.abs().try_into().unwrap()))]
