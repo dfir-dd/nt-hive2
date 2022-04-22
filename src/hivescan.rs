@@ -52,6 +52,23 @@ fn scan_hive(hive: Hive<File>) -> Result<()> {
     let mut count_vk = Counter::default();
 
     for cell in iterator {
+        let cell_type = 
+        match cell.content() {
+            CellLookAhead::NK(_nk) => "nk",
+            CellLookAhead::VK(_vk) => "vk",
+            _ => continue,
+            /*
+            CellLookAhead::SK => todo!(),
+            CellLookAhead::DB => todo!(),
+            CellLookAhead::LI { count, items } => todo!(),
+            CellLookAhead::LF { count, items } => todo!(),
+            CellLookAhead::LH { count, items } => todo!(),
+            CellLookAhead::RI { count, items } => todo!(),
+            */
+        };
+        if cell.header().val.is_deleted() {
+            println!("{}:0x{:08x}", cell_type, cell.header().pos);
+        }
         match cell.content() {
             CellLookAhead::NK(_nk) => {
                 if cell.header().is_deleted() {

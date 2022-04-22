@@ -1,6 +1,6 @@
 use std::io::{Seek, SeekFrom, ErrorKind};
 
-use binread::{BinReaderExt, BinRead, derive_binread, BinResult};
+use binread::{BinReaderExt, BinRead, derive_binread, BinResult, PosValue};
 
 use crate::*;
 use crate::hivebin::HiveBin;
@@ -107,12 +107,12 @@ impl<B, C> Iterator for CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> 
 
 #[derive(BinRead)]
 pub struct CellSelector {
-    header: CellHeader,
+    header: PosValue<CellHeader>,
     content: CellLookAhead
 }
 
 impl CellSelector {
-    pub fn header(&self) -> &CellHeader {
+    pub fn header(&self) -> &PosValue<CellHeader> {
         &self.header
     }
     pub fn content(&self) -> &CellLookAhead {
