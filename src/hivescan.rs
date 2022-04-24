@@ -46,7 +46,8 @@ fn scan_hive(hive: Hive<File>) -> Result<()> {
     bar.set_message("scanning cells");
     
     let iterator = hive
-        .into_cell_iterator(|p| bar.set_position(p));
+        .into_cell_iterator(|p| bar.set_position(p))
+        .with_filter(CellFilter::DeletedOnly);
 
     let mut count_nk = Counter::default();
     let mut count_vk = Counter::default();
@@ -66,8 +67,8 @@ fn scan_hive(hive: Hive<File>) -> Result<()> {
             CellLookAhead::RI { count, items } => todo!(),
             */
         };
-        if cell.header().val.is_deleted() {
-            println!("{}:0x{:08x}", cell_type, cell.header().pos);
+        if cell.header().is_deleted() {
+            println!("{}:0x{:08x}", cell_type, cell.offset().0);
         }
         match cell.content() {
             CellLookAhead::NK(_nk) => {

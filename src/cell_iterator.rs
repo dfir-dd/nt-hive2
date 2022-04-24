@@ -6,11 +6,24 @@ use crate::*;
 use crate::hivebin::HiveBin;
 use crate::subkeys_list::*;
 
+pub enum CellFilter {
+    DeletedOnly,
+    AllocatedOnly,
+    DeletedAndAllocated
+}
+
+impl Default for CellFilter {
+    fn default() -> Self {
+        Self::DeletedAndAllocated
+    }
+}
+
 pub struct CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> () {
     hive: Hive<B>,
     hivebin: Option<HiveBin>,
     read_from_hivebin: usize,
     callback: C,
+    filter: CellFilter
 }
 
 impl<B, C> CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> () {
@@ -20,8 +33,14 @@ impl<B, C> CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> () {
             hive,
             hivebin: None,
             read_from_hivebin: 0,
-            callback
+            callback,
+            filter: CellFilter::default()
         }
+    }
+
+    pub fn with_filter(mut self, filter: CellFilter) -> Self {
+        self.filter = filter;
+        self
     }
 
     fn read_hivebin_header(&mut self) -> BinResult<()> {
@@ -49,57 +68,92 @@ impl<B, C> Iterator for CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> 
     type Item = CellSelector;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.hivebin.is_none() {
-            if self.read_hivebin_header().is_err() {
-                return None;
-            }
-        }
-
-        let start_position = self.hive.stream_position().unwrap();
-        
-        // there might be the start of a nw hive bin at this position
-        if start_position & (! 0xfff) == start_position {
-            log::trace!("trying to read at {:08x}", start_position + 4096);
-            let result: BinResult<HiveBin> = self.hive.read_le();
-            if let Ok(hivebin) = result {
-                self.hivebin = Some(hivebin);
-                self.read_from_hivebin = 0;
-
-                log::trace!("found a new hivebin here");
+        loop {
+            if self.hivebin.is_none() {
+                if self.read_hivebin_header().is_err() {
+                    return None;
+                }
             }
 
-            (self.callback)(self.hive.stream_position().unwrap());
-        }
+            let start_position = self.hive.stream_position().unwrap();
+            
+            // there might be the start of a nw hive bin at this position
+            if start_position & (! 0xfff) == start_position {
+                log::trace!("trying to read at {:08x}", start_position + 4096);
+                let result: BinResult<HiveBin> = self.hive.read_le();
+                if let Ok(hivebin) = result {
+                    self.hivebin = Some(hivebin);
+                    self.read_from_hivebin = 0;
 
+                    log::trace!("found a new hivebin here");
+                }
 
-        let start_position = self.hive.stream_position().unwrap();
-        log::trace!("reading a cell at {:08x}", start_position + 4096);
-        let result: BinResult<CellSelector> = self.hive.read_le();
-        match result {
-            Err(why) => {
-                if let binread::Error::Io(kind) = &why {
-                    if kind.kind() == ErrorKind::UnexpectedEof {
-                        return None;
+                (self.callback)(self.hive.stream_position().unwrap());
+            }
+
+            let start_position = self.hive.stream_position().unwrap();
+            log::trace!("reading a cell at {:08x}", start_position + 4096);
+            
+            let result: BinResult<CellHeader> = self.hive.read_le();
+
+            match result {
+                Err(why) => {
+                    if let binread::Error::Io(kind) = &why {
+                        if kind.kind() == ErrorKind::UnexpectedEof {
+                            return None;
+                        }
+                    }
+                    log::warn!("parser error: {}", why);
+                    (self.callback)(self.hive.stream_position().unwrap());
+                    return None;
+                }
+
+                Ok(header) => {
+                    let handle_this_cell = match self.filter {
+                        CellFilter::DeletedOnly => header.is_deleted(),
+                        CellFilter::AllocatedOnly => ! header.is_deleted(),
+                        CellFilter::DeletedAndAllocated => true,
+                    };
+
+                    if ! handle_this_cell {
+                        self.hive.seek(SeekFrom::Start(header.size() as u64 +  start_position)).unwrap();
+                        continue;
+                    }
+                    
+
+                    let result: BinResult<CellLookAhead> = self.hive.read_le();
+                    match result {
+                        Err(why) => {
+                            if let binread::Error::Io(kind) = &why {
+                                if kind.kind() == ErrorKind::UnexpectedEof {
+                                    return None;
+                                }
+                            }
+                            log::warn!("parser error: {}", why);
+                            (self.callback)(self.hive.stream_position().unwrap());
+                            return None
+                        }
+
+                        Ok(content) => {
+
+                            if self.read_from_hivebin + header.size() >= self.hivebin.as_ref().unwrap().size().try_into().unwrap() {
+                                // the hivebin has been completely read, the next to be read should be
+                                // the next hivebin header
+                                self.hivebin = None;
+                            }
+
+                            log::trace!("skipping {} bytes to {:08x}", header.size(), start_position as usize + header.size());
+
+                            self.hive.seek(SeekFrom::Start(header.size() as u64 +  start_position)).unwrap();
+                            (self.callback)(self.hive.stream_position().unwrap());
+                            return Some(CellSelector{
+                                offset: Offset(start_position.try_into().unwrap()),
+                                header: header,
+                                content
+                            });
+                        }
                     }
                 }
-                log::warn!("parser error: {}", why);
-                (self.callback)(self.hive.stream_position().unwrap());
-                None
-            }
-
-            Ok(selector) => {
-
-                if self.read_from_hivebin + selector.header().size() >= self.hivebin.as_ref().unwrap().size().try_into().unwrap() {
-                    // the hivebin has been completely read, the next to be read should be
-                    // the next hivebin header
-                    self.hivebin = None;
-                }
-
-                log::trace!("skipping {} bytes to {:08x}", selector.header().size(), start_position as usize + selector.header().size());
-
-                self.hive.seek(SeekFrom::Start(selector.header().size() as u64 +  start_position)).unwrap();
-                (self.callback)(self.hive.stream_position().unwrap());
-                Some(selector)
             }
         }
     }
@@ -107,12 +161,16 @@ impl<B, C> Iterator for CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> 
 
 #[derive(BinRead)]
 pub struct CellSelector {
-    header: PosValue<CellHeader>,
+    offset: Offset,
+    header: CellHeader,
     content: CellLookAhead
 }
 
 impl CellSelector {
-    pub fn header(&self) -> &PosValue<CellHeader> {
+    pub fn offset(&self) -> &Offset {
+        &self.offset
+    }
+    pub fn header(&self) -> &CellHeader {
         &self.header
     }
     pub fn content(&self) -> &CellLookAhead {
