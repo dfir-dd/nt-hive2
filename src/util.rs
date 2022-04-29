@@ -42,7 +42,7 @@ pub fn parse_reg_sz_raw(raw_string: &[u8]) -> BinResult<String> {
                 pos: 0,
                 err: Box::new("unable to decode RegSZ string")})
         } else {
-            assert_eq!(raw_string.len(), cow.len());
+            //assert_eq!(raw_string.len(), cow.len());
             Ok(cow.to_string())
         }
     }
@@ -62,7 +62,7 @@ pub (crate) fn parse_reg_multi_sz(raw_string: &[u8]) -> BinResult<Vec<String>> {
     multi_string.pop();
 
     if multi_string.last().is_some() {
-        assert_eq!(multi_string.last().unwrap().len(), 0);
+        // assert_eq!(multi_string.last().unwrap().len(), 0);
         multi_string.pop();
     }
 
