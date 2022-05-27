@@ -13,6 +13,10 @@ struct Args {
 
     #[clap(flatten)]
     pub (crate) verbose: clap_verbosity_flag::Verbosity,
+
+    /// ignore the base block (e.g. if it was encrypted by some ransomware)
+    #[clap(short('I'), long)]
+    ignore_base_block: bool,
 }
 
 fn main() {
@@ -24,9 +28,32 @@ fn main() {
         print_key(hive, &root_key, &mut path)
     }
 
+    let parse_mode = if cli.ignore_base_block {
+        match File::open(&cli.hive_file) {
+            Ok(data) => {
+                let hive = Hive::new(data, HiveParseMode::Raw).unwrap();
+                let offset = match hive.find_root_celloffset() {
+                    Some(offset) => offset,
+                    None => {
+                        log::error!("scan found no root cell offset, aborting...");
+                        std::process::exit(-1);
+                    }
+                };
+                println!("found offset at {}", offset.0);
+                HiveParseMode::Normal(offset)
+            }
+            Err(why) => {
+                log::error!("unable to open '{}': {}", cli.hive_file, why);
+                std::process::exit(-1);
+            },
+        }
+    } else {
+        HiveParseMode::NormalWithBaseBlock
+    };
+
     match File::open(&cli.hive_file) {
         Ok(data) => {
-            let mut hive = Hive::new(data).unwrap();
+            let mut hive = Hive::new(data, parse_mode).unwrap();
             let root_key = &hive.root_key_node().unwrap();
             do_print_key(&mut hive, &root_key).unwrap();
         }

@@ -21,7 +21,7 @@ fn main() {
 
     match File::open(&cli.hive_file) {
         Ok(data) => {
-            let hive = Hive::new(data).unwrap();
+            let hive = Hive::new(data, HiveParseMode::Raw).unwrap();
             scan_hive(hive).unwrap();
         }
         Err(why) => {

@@ -33,12 +33,12 @@ pub struct KeyNodeWithMagic(KeyNode);
 #[derive_binread]
 pub struct KeyNode {
     #[br(parse_with=parse_node_flags)]
-    flags: KeyNodeFlags,
+    pub (crate) flags: KeyNodeFlags,
     
     #[br(parse_with=parse_timestamp)]
     timestamp: DateTime<Utc>,
     access_bits: u32,
-    parent: u32,
+    parent: Offset,
     subkey_count: u32,
 
     #[br(temp)]
@@ -109,7 +109,7 @@ fn parse_node_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
 }
 
 bitflags! {
-    struct KeyNodeFlags: u16 {
+    pub(crate) struct KeyNodeFlags: u16 {
         /// This is a volatile key (not stored on disk).
         const KEY_IS_VOLATILE = 0x0001;
         /// This is the mount point of another hive (not stored on disk).

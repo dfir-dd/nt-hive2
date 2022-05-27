@@ -41,6 +41,6 @@ mod cell_iterator;
 
 pub use cell::*;
 pub use cell_iterator::{CellIterator, CellLookAhead, CellSelector, CellFilter};
-pub use hive::{Hive, Offset};
+pub use hive::{Hive, Offset, HiveParseMode};
 pub use nk::{KeyNode, KeyNodeWithMagic, SubPath};
 pub use vk::{KeyValue, KeyValueWithMagic, RegistryValue};

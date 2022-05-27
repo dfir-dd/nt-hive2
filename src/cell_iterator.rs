@@ -1,6 +1,6 @@
 use std::io::{Seek, SeekFrom, ErrorKind};
 
-use binread::{BinReaderExt, BinRead, derive_binread, BinResult, PosValue};
+use binread::{BinReaderExt, BinRead, derive_binread, BinResult};
 
 use crate::*;
 use crate::hivebin::HiveBin;
@@ -77,7 +77,7 @@ impl<B, C> Iterator for CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> 
 
             let start_position = self.hive.stream_position().unwrap();
             
-            // there might be the start of a nw hive bin at this position
+            // there might be the start of a new hive bin at this position
             if start_position & (! 0xfff) == start_position {
                 log::trace!("trying to read at {:08x}", start_position + 4096);
                 let result: BinResult<HiveBin> = self.hive.read_le();
