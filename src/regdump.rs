@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Parser;
 
 #[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(name="regdump", author, version, about, long_about = None)]
 struct Args {
     /// name of the file to dump
     pub (crate) hive_file: String,
@@ -18,7 +18,7 @@ struct Args {
     /// print as bodyfile format
     #[clap(short('b'),long("bodyfile"))]
     display_bodyfile: bool,
-    
+
     /// ignore the base block (e.g. if it was encrypted by some ransomware)
     #[clap(short('I'), long)]
     ignore_base_block: bool,

@@ -10,7 +10,7 @@ differences:
 # `regdump`
 
 ```
-nt_hive2 2.0.0
+regdump 2.1.0
 forensic parser library for Windows registry hive files
 
 USAGE:
@@ -20,6 +20,7 @@ ARGS:
     <HIVE_FILE>    name of the file to dump
 
 OPTIONS:
+    -b, --bodyfile             print as bodyfile format
     -h, --help                 Print help information
     -I, --ignore-base-block    ignore the base block (e.g. if it was encrypted by some ransomware)
     -q, --quiet                Less output per occurrence
