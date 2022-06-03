@@ -1,3 +1,4 @@
+use bodyfile::Bodyfile3Line;
 use nt_hive2::*;
 use simplelog::{SimpleLogger, Config};
 use std::fs::File;
@@ -13,22 +14,26 @@ struct Args {
 
     #[clap(flatten)]
     pub (crate) verbose: clap_verbosity_flag::Verbosity,
+
+    /// print as bodyfile format
+    #[clap(short('b'),long("bodyfile"))]
+    display_bodyfile: bool,
 }
 
 fn main() {
     let cli = Args::parse();
     let _ = SimpleLogger::init(cli.verbose.log_level_filter(), Config::default());
 
-    fn do_print_key<RS>(hive: &mut Hive<RS>, root_key: &KeyNode) -> Result<()> where RS: Read + Seek {
+    fn do_print_key<RS>(hive: &mut Hive<RS>, root_key: &KeyNode, cli: &Args) -> Result<()> where RS: Read + Seek {
         let mut path = Vec::new();
-        print_key(hive, &root_key, &mut path)
+        print_key(hive, &root_key, &mut path, &cli)
     }
 
     match File::open(&cli.hive_file) {
         Ok(data) => {
             let mut hive = Hive::new(data).unwrap();
             let root_key = &hive.root_key_node().unwrap();
-            do_print_key(&mut hive, &root_key).unwrap();
+            do_print_key(&mut hive, &root_key, &cli).unwrap();
         }
         Err(why) => {
             eprintln!("unable to open '{}': {}", cli.hive_file, why);
@@ -37,14 +42,23 @@ fn main() {
     }
 }
 
-fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>) -> Result<()> where RS: Read + Seek {
+fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>, cli: &Args) -> Result<()> where RS: Read + Seek {
     path.push(keynode.name().to_string());
-    println!("\n[{}]; {}", path.join("\\"), keynode.timestamp());
 
-    print_values(keynode);
+    let current_path = path.join("\\");
+    if cli.display_bodyfile {
+        let bf_line = Bodyfile3Line::new()
+            .with_name(&current_path)
+            .with_ctime(keynode.timestamp().timestamp());
+        println!("{}", bf_line);
+    } else {
+        println!("\n[{}]; {}", &current_path, keynode.timestamp());
+
+        print_values(keynode);
+    }
 
     for sk in keynode.subkeys(hive).unwrap().iter() {
-        print_key(hive, &sk.borrow(), path)?;
+        print_key(hive, &sk.borrow(), path, cli)?;
     }
     path.pop();
 
