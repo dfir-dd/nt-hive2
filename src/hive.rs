@@ -1,8 +1,8 @@
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 
-use crate::nk::KeyNodeWithMagic;
+use crate::nk::{KeyNodeWithMagic, KeyNodeFlags};
 use crate::{nk::KeyNode, CellIterator};
-use crate::Cell;
+use crate::{Cell, CellFilter, CellLookAhead};
 use binread::{BinRead, BinReaderExt, BinResult};
 
 /// Represents a registry hive file.
@@ -19,8 +19,20 @@ where
     B: BinReaderExt,
 {
     data: B,
-    base_block: HiveBaseBlock,
+    base_block: Option<HiveBaseBlock>,
     data_offset: u32,
+    root_cell_offset: Option<Offset>,
+}
+
+pub enum HiveParseMode {
+    /// to be used only when converting this hive to an iterator
+    Raw,
+
+    /// to be used if you don't expect a usable base block
+    Normal(Offset),
+
+    /// for normal parsing of registry files
+    NormalWithBaseBlock
 }
 
 /// represents an offset (usually a 32bit value) used in registry hive files
@@ -33,16 +45,35 @@ where
 {
     /// creates a new [Hive] object. This includes parsing the HiveBaseBlock and determining
     /// the start of the hive bins data.
-    pub fn new(mut data: B) -> BinResult<Self> {
+    pub fn new(mut data: B, parse_mode: HiveParseMode) -> BinResult<Self> {
         data.seek(SeekFrom::Start(0))?;
-        let base_block: HiveBaseBlock = data.read_le().unwrap();
-        let data_offset = data.stream_position()? as u32;
+        let me = match parse_mode {
+            HiveParseMode::Raw => Self {
+                data: data,
+                base_block: None,
+                data_offset: 0x1000,
+                root_cell_offset: None
+            },
+            HiveParseMode::Normal(offset) => Self {
+                data: data,
+                base_block: None,
+                data_offset: 0x1000,
+                root_cell_offset: Some(offset)
+            },
+            HiveParseMode::NormalWithBaseBlock => {
+                let base_block: HiveBaseBlock = data.read_le().unwrap();
+                let data_offset = data.stream_position()? as u32;
+                let root_cell_offset = base_block.root_cell_offset.clone();
+                Self {
+                    data: data,
+                    base_block: Some(base_block),
+                    data_offset: data_offset,
+                    root_cell_offset: Some(root_cell_offset)
+                }
+            }
+        };
 
-        Ok(Self {
-            data,
-            base_block,
-            data_offset,
-        })
+        Ok(me)
     }
 
     /// Is this really needed???
@@ -54,7 +85,7 @@ where
 
     /// returns the root key of this registry hive file
     pub fn root_key_node(&mut self) -> BinResult<KeyNode> {
-        let mkn: KeyNodeWithMagic = self.read_structure(self.base_block.root_cell_offset)?;
+        let mkn: KeyNodeWithMagic = self.read_structure(self.root_cell_offset())?;
         Ok(mkn.into())
     }
 
@@ -95,7 +126,24 @@ where
 
     /// returns the offset of the root cell
     pub fn root_cell_offset(&self) -> Offset {
-        self.base_block.root_cell_offset
+        match &self.base_block {
+            None => self.root_cell_offset.unwrap(),
+            Some(base_block) => base_block.root_cell_offset
+        }
+    }
+
+    pub fn find_root_celloffset(self) -> Option<Offset> {
+        let iterator = self
+        .into_cell_iterator(|_| ())
+        .with_filter(CellFilter::AllocatedOnly);
+        for cell in iterator {
+            if let CellLookAhead::NK(nk) = cell.content() {
+                if nk.flags.contains(KeyNodeFlags::KEY_HIVE_ENTRY) {
+                    return Some(cell.offset().clone())
+                }
+            }
+        }
+        None
     }
 
     pub fn into_cell_iterator<C>(self, callback: C) -> CellIterator<B, C> where C: Fn(u64) -> () {
@@ -103,8 +151,12 @@ where
     }
 
     pub fn data_size(&self) -> u32 {
-        self.base_block.data_size
+        match &self.base_block {
+            None => todo!(),
+            Some(base_block) => base_block.data_size
+        }
     }
+    
 }
 
 impl<B> Read for Hive<B>

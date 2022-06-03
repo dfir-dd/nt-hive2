@@ -7,6 +7,26 @@ differences:
  - support of displaying last written timestamps
  - possibly recovery of deleted cells (might be added in the future)
 
+# `regdump`
+
+```
+nt_hive2 2.0.0
+forensic parser library for Windows registry hive files
+
+USAGE:
+    regdump [OPTIONS] <HIVE_FILE>
+
+ARGS:
+    <HIVE_FILE>    name of the file to dump
+
+OPTIONS:
+    -h, --help                 Print help information
+    -I, --ignore-base-block    ignore the base block (e.g. if it was encrypted by some ransomware)
+    -q, --quiet                Less output per occurrence
+    -v, --verbose              More output per occurrence
+    -V, --version              Print version information
+```
+
 ## Usage example
 
 ```rust
