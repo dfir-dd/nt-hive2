@@ -76,6 +76,14 @@ where
         Ok(me)
     }
 
+    pub fn is_primary_file(&self) -> bool {
+        if let Some(base_block) = &self.base_block {
+            base_block.file_type == 0
+        } else {
+            false
+        }
+    }
+
     /// Is this really needed???
     pub fn enum_subkeys(&mut self, callback: fn(&mut Self, &KeyNode) -> BinResult<()>) -> BinResult<()> {
         let root_key_node = self.root_key_node()?;
@@ -207,7 +215,6 @@ struct HiveBaseBlock {
     #[br(assert(vec![3, 4, 5, 6].contains(&minor_version)))]
     minor_version: u32,
 
-    #[br(assert(file_type==0))]
     file_type: u32,
 
     #[br(assert(file_format==1))]
