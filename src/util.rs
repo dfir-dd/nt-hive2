@@ -58,7 +58,7 @@ pub (crate) fn parse_reg_multi_sz(raw_string: &[u8]) -> BinResult<Vec<String>> {
     // last two \0 characters.
     // those additional empty strings will be deleted afterwards:
     assert!(! multi_string.len() >= 2);
-    assert_eq!(multi_string.last().unwrap().len(), 0);
+    //assert_eq!(multi_string.last().unwrap().len(), 0);
     multi_string.pop();
 
     if multi_string.last().is_some() {
