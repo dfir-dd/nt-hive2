@@ -91,7 +91,8 @@ impl HiveScanApplication {
                 path,
                 entry.nk().timestamp().to_rfc3339(),
                 entry.offset().0 + self.data_offset);
-
+            self.print_values_of(entry);
+            println!("");
         }
 
     
@@ -99,4 +100,12 @@ impl HiveScanApplication {
             self.print_entry(&path, &child, entry.is_deleted());
         }
     }
+
+    fn print_values_of(&self, entry: &RegTreeEntry) {
+        
+        for value in entry.nk().values() {
+            println!("\"{}\" = {}", value.name(), value.value());
+        }
+    }
+
 }
