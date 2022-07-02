@@ -19,13 +19,13 @@ std = []
 [[bin]]
 name = "regdump"
 path = "src/regdump.rs"
-required-features = ["regdump"]
+required-features = ["regdump", "bodyfile"]
 about = "Dumps a registry hive file"
 
 [[bin]]
 name = "hivescan"
 path = "src/hivescan/main.rs"
-required-features = ["hivescan"]
+required-features = ["hivescan", "bodyfile"]
 
 [lib]
 name = "nt_hive2"

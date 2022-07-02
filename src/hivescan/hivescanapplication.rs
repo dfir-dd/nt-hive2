@@ -1,3 +1,4 @@
+use bodyfile::Bodyfile3Line;
 use nt_hive2::*;
 use crate::regtreeentry::RegTreeEntry;
 use std::{fs::File};
@@ -16,13 +17,17 @@ pub (crate) struct Args {
 
     #[clap(flatten)]
     pub (crate) verbose: clap_verbosity_flag::Verbosity,
+
+    /// output as bodyfile format
+    #[clap(short('b'))]
+    pub (crate) print_bodyfile: bool
 }
 
 pub (crate) struct HiveScanApplication{
 
     #[allow(dead_code)]
     cli: Args,
-    
+
     data_offset: u32,
     hive: Option<Hive<File>>
 }
@@ -46,20 +51,37 @@ impl HiveScanApplication {
         assert!(self.hive.is_none());
         
         for node in builder.root_nodes() {
-            self.print_entry("", &node.borrow());
+            self.print_entry("", &node.borrow(), false);
         }
         Ok(())
     }
 
-    fn print_entry(&self, path: &str, entry: &RegTreeEntry) {
+    fn print_entry(&self, path: &str, entry: &RegTreeEntry, force_print: bool) {
         let path = format!("{}/{}", path, entry.nk().name());
     
-        if entry.is_deleted() {
-            println!("[{}]; found at offset 0x{:x}", path, entry.offset().0 + self.data_offset);
+        if self.cli.print_bodyfile {
+            let bf_name = if entry.is_deleted() {
+                format!("{} (deleted)", path)
+            } else {
+                path.clone()
+            };
+
+            let bf_line = Bodyfile3Line::new()
+                .with_owned_name(bf_name)
+                .with_inode(&format!("{:x}", entry.offset().0))
+                .with_ctime(entry.nk().timestamp().timestamp());
+            println!("{}", bf_line);
+        }
+        if entry.is_deleted() || force_print {
+            println!("[{}]; last change at {}, found at offset 0x{:x}", 
+                path,
+                entry.nk().timestamp().to_rfc3339(),
+                entry.offset().0 + self.data_offset);
+
         }
     
         for child in entry.children() {
-            self.print_entry(&path, &child);
+            self.print_entry(&path, &child, entry.is_deleted());
         }
     }
 }
