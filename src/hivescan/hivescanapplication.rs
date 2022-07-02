@@ -29,12 +29,18 @@ pub (crate) struct HiveScanApplication{
     cli: Args,
 
     data_offset: u32,
+    root_offset: Offset,
     hive: Option<Hive<File>>
 }
 
 impl HiveScanApplication {
     pub fn new(cli: Args, hive: Hive<File>) -> Self {
-        Self { cli, data_offset: *hive.data_offset(), hive: Some(hive) }
+        Self {
+            cli,
+            data_offset: *hive.data_offset(),
+            root_offset: hive.root_cell_offset(),
+            hive: Some(hive) 
+        }
     }
 
     pub fn run(&mut self) -> Result<()> {
@@ -44,14 +50,19 @@ impl HiveScanApplication {
             .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>9}/{len:9}({percent}%) {msg}");
         let bar = ProgressBar::new(self.hive.as_ref().unwrap().data_size().into());
         bar.set_style(progress_style);
-
         bar.set_message("scanning cells");
+
         let builder = RegTreeBuilder::from_hive(self.hive.take().unwrap(), |p| bar.set_position(p));
         
         assert!(self.hive.is_none());
         
         for node in builder.root_nodes() {
-            self.print_entry("", &node.borrow(), false);
+            let root = if node.borrow().nk().parent == self.root_offset {
+                "".to_owned()
+            } else {
+                format!("$Orphaned/{:x}", node.borrow().nk().parent.0)
+            };
+            self.print_entry(&root, &node.borrow(), false);
         }
         Ok(())
     }
@@ -71,14 +82,14 @@ impl HiveScanApplication {
                 .with_inode(&format!("{:x}", entry.offset().0))
                 .with_ctime(entry.nk().timestamp().timestamp());
             println!("{}", bf_line);
-        }
-        if entry.is_deleted() || force_print {
+        } else if entry.is_deleted() || force_print {
             println!("[{}]; last change at {}, found at offset 0x{:x}", 
                 path,
                 entry.nk().timestamp().to_rfc3339(),
                 entry.offset().0 + self.data_offset);
 
         }
+
     
         for child in entry.children() {
             self.print_entry(&path, &child, entry.is_deleted());
