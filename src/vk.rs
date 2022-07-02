@@ -17,7 +17,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 
-#[derive(BinRead)]
+#[derive(BinRead, Eq, PartialEq)]
 #[br(import(count: usize))]
 pub struct KeyValueList {
     #[br(count=count)]

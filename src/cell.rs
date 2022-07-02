@@ -9,9 +9,10 @@ use crate::*;
 /// the size of the cell as a 32bit value, but [CellHeader] enriches this by
 /// some additional information
 #[derive_binread]
+#[derive(Eq, PartialEq)]
 pub struct CellHeader {
     // The cell size must be a multiple of 8 bytes
-    #[br(temp)]
+    #[br(temp, assert(raw_size != 0))]
     raw_size: i32,
 
     #[br(calc(raw_size.abs().try_into().unwrap()))]
@@ -79,7 +80,7 @@ impl CellHeader {
 /// For conveniance reasons, [Hive] already presents the method [read_structure](Hive::read_structure),
 /// which does basically the same.
 /// 
-#[derive(BinRead)]
+#[derive(BinRead, Eq, PartialEq)]
 #[br(import_tuple(data_args: A))]
 pub struct Cell<T, A: Any + Copy>
 where

@@ -36,7 +36,7 @@ pub enum HiveParseMode {
 }
 
 /// represents an offset (usually a 32bit value) used in registry hive files
-#[derive(BinRead, Debug, Clone, Copy)]
+#[derive(BinRead, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Offset(pub u32);
 
 impl<B> Hive<B>

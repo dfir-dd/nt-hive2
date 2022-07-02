@@ -38,7 +38,7 @@ pub struct KeyNode {
     #[br(parse_with=parse_timestamp)]
     timestamp: DateTime<Utc>,
     access_bits: u32,
-    parent: Offset,
+    pub parent: Offset,
     subkey_count: u32,
 
     #[br(temp)]

@@ -1,0 +1,109 @@
+use std::{rc::Rc, cell::RefCell, collections::HashMap};
+
+use binread::{BinReaderExt};
+use nt_hive2::{Offset, Hive, KeyNode};
+
+use crate::regtreeentry::*;
+
+pub (crate) struct RegTreeBuilder {
+    /// contains all RegTreeEntrys with no parent
+    subtrees: HashMap<Offset, Rc<RefCell<RegTreeEntry>>>,
+
+    /// contains all (really all) RegTreeEntrys
+    entries: HashMap<Offset, Rc<RefCell<RegTreeEntry>>>,
+
+    /// contains the offsets of all non-added entries which are parents of
+    /// already added entries, and the entries that miss their parents
+    missing_parents: HashMap<Offset, Vec<Rc<RefCell<RegTreeEntry>>>>
+}
+
+pub (crate) struct KeyNodeIterator<'a> {
+    builder: &'a RegTreeBuilder
+}
+
+impl<'a> KeyNodeIterator<'a> {
+    pub fn new(builder: &'a RegTreeBuilder) -> Self {
+        Self { builder }
+    }
+}
+
+impl<B> From<Hive<B>> for RegTreeBuilder where B: BinReaderExt {
+    fn from(hive: Hive<B>) -> Self {
+        Self::from_hive(hive, |_| ())
+    }
+}
+
+impl RegTreeBuilder {
+
+    pub fn from_hive<B, C>(hive: Hive<B>, progress_callback: C) -> Self where B: BinReaderExt, C: Fn(u64)->() {
+        let iterator = hive.into_cell_iterator(progress_callback);
+        let mut me = Self {
+            subtrees: HashMap::new(),
+            entries: HashMap::new(),
+            missing_parents: HashMap::new(),
+        };
+
+        let mut last_offset = Offset(0);
+        for cell in iterator {
+            let my_offset = *cell.offset();
+            assert_ne!(last_offset, my_offset);
+            log::trace!("found new cell at offset 0x{:x}", my_offset.0);
+
+            match TryInto::<KeyNode>::try_into(cell) {
+                Ok(nk) => me.insert_nk(my_offset, nk),
+                Err(_) => ()
+            };
+
+            last_offset = my_offset;
+        }
+        me
+    }
+
+    pub fn iter_tree(&self) -> KeyNodeIterator {
+        KeyNodeIterator::new(&self)
+    }
+
+    fn insert_nk(&mut self, nk_offset: Offset, nk: KeyNode) {
+        assert!(! self.subtrees.contains_key(&nk_offset));
+        assert!(! self.entries.contains_key(&nk_offset));
+
+        let parent_offset = nk.parent;
+        let entry = Rc::new(RefCell::new(RegTreeEntry::new(nk_offset, nk)));
+
+        // check if the parent of the current node has already been added.
+        // If yes, than put the current node below of it. If not, add the
+        // current node at the root level (which can contain more than one nodes)
+        match self.entries.get(&parent_offset) {
+            Some(parent_entry) => {
+                assert!(! self.missing_parents.contains_key(&parent_offset));
+                parent_entry.borrow_mut().add_child(Rc::clone(&entry))
+            },
+            None => {
+                self.subtrees.insert(nk_offset, Rc::clone(&entry));
+                self.add_child_that_misses_parent(Rc::clone(&entry), parent_offset);
+            }
+        }
+
+        // check if the current node has children which have already been
+        // added. If yes, those children should've been at the root level
+        // until now and must be reordered
+        if let Some(children) = self.missing_parents.remove(&nk_offset) {
+            for child in children.into_iter() {
+                entry.borrow_mut().add_child(child);
+            }
+        }
+
+        self.entries.insert(nk_offset, entry);
+    }
+
+    fn add_child_that_misses_parent(&mut self, child: Rc<RefCell<RegTreeEntry>>, parent_offset: Offset) {
+        match self.missing_parents.get_mut(&parent_offset) {
+            Some(parent) => {
+                parent.push(child);
+            },
+            None => {
+                self.missing_parents.insert(parent_offset, vec![child]);
+            }
+        }
+    }
+}

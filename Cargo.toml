@@ -24,9 +24,8 @@ about = "Dumps a registry hive file"
 
 [[bin]]
 name = "hivescan"
-path = "src/hivescan.rs"
+path = "src/hivescan/main.rs"
 required-features = ["hivescan"]
-about = "Dumps a registry hive file"
 
 [lib]
 name = "nt_hive2"
@@ -39,9 +38,10 @@ bitflags = "1.3"
 encoding_rs = "0.8"
 log = {version = "0.4", features = [ "release_max_level_info" ]}
 chrono = "0.4"
-simplelog = {version="0.11", optional=true}
+simplelog = {version="0.12", optional=true}
 winstructs = "0.3.0"
 anyhow = "1.0"
+thiserror = "1.0"
 
 clap = {version="3", optional=true}
 clap-verbosity-flag = {version="1.0.0", optional=true}

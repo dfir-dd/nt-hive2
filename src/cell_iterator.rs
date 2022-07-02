@@ -1,6 +1,7 @@
 use std::io::{Seek, SeekFrom, ErrorKind};
 
 use binread::{BinReaderExt, BinRead, derive_binread, BinResult};
+use thiserror::Error;
 
 use crate::*;
 use crate::hivebin::HiveBin;
@@ -44,8 +45,7 @@ impl<B, C> CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> () {
     }
 
     fn read_hivebin_header(&mut self) -> BinResult<()> {
-        let result: BinResult<HiveBin> = self.hive.read_le();
-        match result {
+        match self.hive.read_le::<HiveBin>() {
             Err(why) => {
                 if let binread::Error::Io(kind) = &why {
                     if kind.kind() == ErrorKind::UnexpectedEof {
@@ -79,13 +79,17 @@ impl<B, C> Iterator for CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> 
             
             // there might be the start of a new hive bin at this position
             if start_position & (! 0xfff) == start_position {
-                log::trace!("trying to read at {:08x}", start_position + 4096);
-                let result: BinResult<HiveBin> = self.hive.read_le();
-                if let Ok(hivebin) = result {
-                    self.hivebin = Some(hivebin);
-                    self.read_from_hivebin = 0;
+                log::debug!("trying to read hivebin header at {:08x}", start_position + 0x1000);
 
-                    log::trace!("found a new hivebin here");
+                match self.hive.read_le::<HiveBin>() {
+                    Ok(hivebin) => {
+                        log::debug!("found a new hivebin here");
+                        self.hivebin = Some(hivebin);
+                        self.read_from_hivebin = 0;
+                    }
+                    Err(why) => {
+                        log::debug!("this does not seem to be a hivebin header (cause was: {})", why);
+                    }
                 }
 
                 (self.callback)(self.hive.stream_position().unwrap());
@@ -139,6 +143,7 @@ impl<B, C> Iterator for CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> 
                             if self.read_from_hivebin + header.size() >= self.hivebin.as_ref().unwrap().size().try_into().unwrap() {
                                 // the hivebin has been completely read, the next to be read should be
                                 // the next hivebin header
+                                log::trace!("the current hivebin has been completely read");
                                 self.hivebin = None;
                             }
 
@@ -215,5 +220,27 @@ pub enum CellLookAhead {
         items: Vec<IndexRootListElement>
     },
     UNKNOWN
+}
+
+#[derive(Error, Debug)]
+pub enum CellLookAheadConversionError {
+    #[error("tried to extract some type from this cell, which is not actually stored in this cell.")]
+    DifferentCellTypeExpected,
+}
+
+impl CellLookAhead {
+    pub fn is_nk(&self) -> bool {matches!(self, Self::NK(_))}
+}
+
+impl TryInto<KeyNode> for CellSelector {
+    type Error = CellLookAheadConversionError;
+
+    fn try_into(self) -> Result<KeyNode, Self::Error> {
+        match self.content {
+            CellLookAhead::NK(nk) => Ok(nk),
+            _ => Err(CellLookAheadConversionError::DifferentCellTypeExpected),
+        }
+    }
+
 }
 
