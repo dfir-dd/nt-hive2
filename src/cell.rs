@@ -15,7 +15,7 @@ pub struct CellHeader {
     #[br(temp, assert(raw_size != 0))]
     raw_size: i32,
 
-    #[br(calc(raw_size.abs().try_into().unwrap()))]
+    #[br(calc((raw_size as i64).abs().try_into().unwrap()))]
     size: usize,
 
     #[br(calc(raw_size > 0))]

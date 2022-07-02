@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell, collections::HashMap};
+use std::{rc::Rc, cell::RefCell, collections::{HashMap, hash_map}};
 
 use binread::{BinReaderExt};
 use nt_hive2::{Offset, Hive, KeyNode};
@@ -17,21 +17,24 @@ pub (crate) struct RegTreeBuilder {
     missing_parents: HashMap<Offset, Vec<Rc<RefCell<RegTreeEntry>>>>
 }
 
-pub (crate) struct KeyNodeIterator<'a> {
-    builder: &'a RegTreeBuilder
-}
-
-impl<'a> KeyNodeIterator<'a> {
-    pub fn new(builder: &'a RegTreeBuilder) -> Self {
-        Self { builder }
-    }
-}
-
 impl<B> From<Hive<B>> for RegTreeBuilder where B: BinReaderExt {
     fn from(hive: Hive<B>) -> Self {
         Self::from_hive(hive, |_| ())
     }
 }
+
+pub (crate) struct RootNodes<'a> {
+    values: hash_map::Values<'a, Offset, Rc<RefCell<RegTreeEntry>>>,
+}
+
+impl<'a> Iterator for RootNodes<'a> {
+    type Item = &'a Rc<RefCell<RegTreeEntry>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.values.next()
+    }
+}
+
 
 impl RegTreeBuilder {
 
@@ -46,11 +49,12 @@ impl RegTreeBuilder {
         let mut last_offset = Offset(0);
         for cell in iterator {
             let my_offset = *cell.offset();
+            let is_deleted = cell.header().is_deleted();
             assert_ne!(last_offset, my_offset);
             log::trace!("found new cell at offset 0x{:x}", my_offset.0);
 
             match TryInto::<KeyNode>::try_into(cell) {
-                Ok(nk) => me.insert_nk(my_offset, nk),
+                Ok(nk) => me.insert_nk(my_offset, nk, is_deleted),
                 Err(_) => ()
             };
 
@@ -59,16 +63,18 @@ impl RegTreeBuilder {
         me
     }
 
-    pub fn iter_tree(&self) -> KeyNodeIterator {
-        KeyNodeIterator::new(&self)
+    pub fn root_nodes(&self) -> RootNodes {
+        RootNodes {
+            values: self.subtrees.values()
+        }
     }
-
-    fn insert_nk(&mut self, nk_offset: Offset, nk: KeyNode) {
+    
+    fn insert_nk(&mut self, nk_offset: Offset, nk: KeyNode, is_deleted: bool) {
         assert!(! self.subtrees.contains_key(&nk_offset));
         assert!(! self.entries.contains_key(&nk_offset));
 
         let parent_offset = nk.parent;
-        let entry = Rc::new(RefCell::new(RegTreeEntry::new(nk_offset, nk)));
+        let entry = Rc::new(RefCell::new(RegTreeEntry::new(nk_offset, nk, is_deleted)));
 
         // check if the parent of the current node has already been added.
         // If yes, than put the current node below of it. If not, add the
