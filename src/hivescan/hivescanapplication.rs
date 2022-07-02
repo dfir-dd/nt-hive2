@@ -50,7 +50,7 @@ impl HiveScanApplication {
             .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>9}/{len:9}({percent}%) {msg}");
         let bar = ProgressBar::new(self.hive.as_ref().unwrap().data_size().into());
         bar.set_style(progress_style);
-        bar.set_draw_delta(1000);
+        bar.set_draw_delta(64000);
         bar.set_message("scanning cells");
 
         let builder = RegTreeBuilder::from_hive(self.hive.take().unwrap(), |p| bar.set_position(p));
@@ -58,12 +58,15 @@ impl HiveScanApplication {
         assert!(self.hive.is_none());
         
         for node in builder.root_nodes() {
-            let root = if node.borrow().offset() == &self.root_offset {
-                "".to_owned()
+            if node.borrow().offset() == &self.root_offset {
+                // this is the root entry, which we don't print by itself
+                for grandchild in node.borrow().children() {
+                    self.print_entry("", &grandchild, false);
+                }
             } else {
-                format!("$Orphaned/{:x}", node.borrow().nk().parent.0)
-            };
-            self.print_entry(&root, &node.borrow(), false);
+                let parent = format!("/$Orphaned/{:x}", node.borrow().nk().parent.0);
+                self.print_entry(&parent, &node.borrow(), false);
+            }
         }
         Ok(())
     }
