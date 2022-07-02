@@ -28,6 +28,24 @@ OPTIONS:
     -V, --version              Print version information
 ```
 
+# `hivescan`
+```
+scans a registry hive file for deleted entries
+
+USAGE:
+    hivescan [OPTIONS] <HIVE_FILE>
+
+ARGS:
+    <HIVE_FILE>    name of the file to scan
+
+OPTIONS:
+    -b               output as bodyfile format
+    -h, --help       Print help information
+    -q, --quiet      Less output per occurrence
+    -v, --verbose    More output per occurrence
+    -V, --version    Print version information
+```
+
 ## Usage example
 
 ```rust
