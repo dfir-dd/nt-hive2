@@ -29,6 +29,7 @@ OPTIONS:
 ```
 
 # `hivescan`
+
 ```
 scans a registry hive file for deleted entries
 
