@@ -5,7 +5,7 @@ differences:
 
  - use of [BinRead](https://docs.rs/binread/latest/binread/) to parse hive files
  - support of displaying last written timestamps
- - possibly recovery of deleted cells (might be added in the future)
+ - recovery of deleted cells
 
 # `regdump`
 
