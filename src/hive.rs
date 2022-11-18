@@ -1,4 +1,4 @@
-use std::io::{ErrorKind, Read, Seek, SeekFrom};
+use std::io::{ErrorKind, Read, Seek, SeekFrom, Cursor};
 
 use crate::nk::{KeyNodeWithMagic, KeyNodeFlags};
 use crate::{nk::KeyNode, CellIterator};
@@ -61,10 +61,15 @@ where
                 root_cell_offset: Some(offset)
             },
             HiveParseMode::NormalWithBaseBlock => {
-                Self::validate_checksum(&mut data)?;
-
+                /* preread the baseblock data to prevent seeking */
+                let mut baseblock_data = [0; 4096];
+                data.read_exact(&mut baseblock_data)?;
+                
+                Self::validate_checksum(&baseblock_data)?;
+                
                 /* read baseblock */
-                let base_block: HiveBaseBlock = data.read_le().unwrap();
+                let mut baseblock_cursor = Cursor::new(baseblock_data);
+                let base_block: HiveBaseBlock = baseblock_cursor.read_le().unwrap();
                 let data_offset = data.stream_position()? as u32;
                 let root_cell_offset = base_block.root_cell_offset;
                 Self {
@@ -79,16 +84,15 @@ where
         Ok(me)
     }
 
-    fn validate_checksum(data: &mut B) -> BinResult<()> {
-        let current_position = data.stream_position()?;
-        let  _: HiveBaseBlockRaw = match data.read_le() {
+    fn validate_checksum(baseblock_data: &[u8; 4096]) -> BinResult<()> {
+        let mut cursor = Cursor::new(baseblock_data);
+        let  _: HiveBaseBlockRaw = match cursor.read_le() {
             Ok(r) => r,
             Err(why) => {
                 log::error!("invalid checksum detected");
                 return Err(why);
             }
         };
-        data.seek(SeekFrom::Start(current_position))?;
         Ok(())
     }
 
@@ -257,7 +261,12 @@ struct HiveBaseBlockRaw {
     raw_data: Vec<u32>,
 
     #[br(assert(checksum_of(&raw_data[..]) == checksum))]
-    checksum: u32
+    checksum: u32,
+
+    #[br(count = 0x37E)]
+    padding_2: Vec<u32>,
+    boot_type: u32,
+    boot_recover: u32,
 }
 
 /// <https://systemroot.gitee.io/pages/apiexplorer/d9/d1/hivesum_8c.html#a0>
@@ -265,6 +274,6 @@ fn checksum_of(bytes: &[u32]) -> u32 {
     match bytes.iter().fold(0, |acc, x| acc ^ x) {
         0xffff_ffff => 0xffff_fffe,
         0           => 1,
-        sum    => sum
+        sum    => sum+1
     }
 }
