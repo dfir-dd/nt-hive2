@@ -36,7 +36,7 @@ fn obtain_data_bytes<R: Read + Seek>(
     let segment_list = args.0.value.as_ref().unwrap();
 
     // allocate the maximum expected size of data
-    let mut res = Vec::with_capacity(0*segment_list.segments.len() * BIGDATA_MAX_SEGMENT_SIZE as usize);
+    let mut res = Vec::with_capacity(segment_list.segments.len() * BIGDATA_MAX_SEGMENT_SIZE as usize);
 
     for item_ptr in &segment_list.segments {
         let item = item_ptr.value.as_ref().unwrap();

@@ -49,31 +49,47 @@ where
         data.seek(SeekFrom::Start(0))?;
         let me = match parse_mode {
             HiveParseMode::Raw => Self {
-                data: data,
+                data,
                 base_block: None,
                 data_offset: 0x1000,
                 root_cell_offset: None
             },
             HiveParseMode::Normal(offset) => Self {
-                data: data,
+                data,
                 base_block: None,
                 data_offset: 0x1000,
                 root_cell_offset: Some(offset)
             },
             HiveParseMode::NormalWithBaseBlock => {
+                Self::validate_checksum(&mut data)?;
+
+                /* read baseblock */
                 let base_block: HiveBaseBlock = data.read_le().unwrap();
                 let data_offset = data.stream_position()? as u32;
-                let root_cell_offset = base_block.root_cell_offset.clone();
+                let root_cell_offset = base_block.root_cell_offset;
                 Self {
-                    data: data,
+                    data,
                     base_block: Some(base_block),
-                    data_offset: data_offset,
+                    data_offset,
                     root_cell_offset: Some(root_cell_offset)
                 }
             }
         };
 
         Ok(me)
+    }
+
+    fn validate_checksum(data: &mut B) -> BinResult<()> {
+        let current_position = data.stream_position()?;
+        let  _: HiveBaseBlockRaw = match data.read_le() {
+            Ok(r) => r,
+            Err(why) => {
+                log::error!("invalid checksum detected");
+                return Err(why);
+            }
+        };
+        data.seek(SeekFrom::Start(current_position))?;
+        Ok(())
     }
 
     pub fn is_primary_file(&self) -> bool {
@@ -147,14 +163,14 @@ where
         for cell in iterator {
             if let CellLookAhead::NK(nk) = cell.content() {
                 if nk.flags.contains(KeyNodeFlags::KEY_HIVE_ENTRY) {
-                    return Some(cell.offset().clone())
+                    return Some(*cell.offset())
                 }
             }
         }
         None
     }
 
-    pub fn into_cell_iterator<C>(self, callback: C) -> CellIterator<B, C> where C: Fn(u64) -> () {
+    pub fn into_cell_iterator<C>(self, callback: C) -> CellIterator<B, C> where C: Fn(u64) {
         CellIterator::new(self, callback)
     }
 
@@ -232,4 +248,23 @@ struct HiveBaseBlock {
     padding_2: Vec<u32>,
     boot_type: u32,
     boot_recover: u32,
+}
+
+#[allow(dead_code)]
+#[derive(BinRead)]
+struct HiveBaseBlockRaw {
+    #[br(count = 127)]
+    raw_data: Vec<u32>,
+
+    #[br(assert(checksum_of(&raw_data[..]) == checksum))]
+    checksum: u32
+}
+
+/// <https://systemroot.gitee.io/pages/apiexplorer/d9/d1/hivesum_8c.html#a0>
+fn checksum_of(bytes: &[u32]) -> u32 {
+    match bytes.iter().fold(0, |acc, x| acc ^ x) {
+        0xffff_ffff => 0xffff_fffe,
+        0           => 1,
+        sum    => sum
+    }
 }
