@@ -274,6 +274,6 @@ fn checksum_of(bytes: &[u32]) -> u32 {
     match bytes.iter().fold(0, |acc, x| acc ^ x) {
         0xffff_ffff => 0xffff_fffe,
         0           => 1,
-        sum    => sum+1
+        sum    => sum
     }
 }

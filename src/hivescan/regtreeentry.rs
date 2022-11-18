@@ -44,6 +44,6 @@ impl<'a> Iterator for Children<'a> {
     type Item = Ref<'a, RegTreeEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.children.next().and_then(|r| Some(r.borrow()))
+        self.children.next().map(|r| r.borrow())
     }
 }

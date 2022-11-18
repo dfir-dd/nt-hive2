@@ -30,7 +30,7 @@ fn main() {
 
     fn do_print_key<RS>(hive: &mut Hive<RS>, root_key: &KeyNode, cli: &Args) -> Result<()> where RS: Read + Seek {
         let mut path = Vec::new();
-        print_key(hive, &root_key, &mut path, &cli)
+        print_key(hive, root_key, &mut path, cli)
     }
 
     let parse_mode = if cli.ignore_base_block {
@@ -60,7 +60,7 @@ fn main() {
         Ok(data) => {
             let mut hive = Hive::new(data, parse_mode).unwrap();
             let root_key = &hive.root_key_node().unwrap();
-            do_print_key(&mut hive, &root_key, &cli).unwrap();
+            do_print_key(&mut hive, root_key, &cli).unwrap();
         }
         Err(why) => {
             eprintln!("unable to open '{}': {}", cli.hive_file, why);

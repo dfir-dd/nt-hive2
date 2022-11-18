@@ -38,7 +38,7 @@ impl<'a> Iterator for RootNodes<'a> {
 
 impl RegTreeBuilder {
 
-    pub fn from_hive<B, C>(hive: Hive<B>, progress_callback: C) -> Self where B: BinReaderExt, C: Fn(u64)->() {
+    pub fn from_hive<B, C>(hive: Hive<B>, progress_callback: C) -> Self where B: BinReaderExt, C: Fn(u64) {
         let iterator = hive.into_cell_iterator(progress_callback);
         let mut me = Self {
             subtrees: HashMap::new(),
@@ -53,9 +53,8 @@ impl RegTreeBuilder {
             assert_ne!(last_offset, my_offset);
             log::trace!("found new cell at offset 0x{:x}", my_offset.0);
 
-            match TryInto::<KeyNode>::try_into(cell) {
-                Ok(nk) => me.insert_nk(my_offset, nk, is_deleted),
-                Err(_) => ()
+            if let Ok(nk) = TryInto::<KeyNode>::try_into(cell) {
+                me.insert_nk(my_offset, nk, is_deleted)
             };
 
             last_offset = my_offset;

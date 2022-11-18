@@ -92,7 +92,7 @@ impl HiveScanApplication {
                 entry.nk().timestamp().to_rfc3339(),
                 entry.offset().0 + self.data_offset);
             self.print_values_of(entry);
-            println!("");
+            println!();
         }
 
     

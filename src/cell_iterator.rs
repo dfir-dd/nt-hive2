@@ -19,7 +19,7 @@ impl Default for CellFilter {
     }
 }
 
-pub struct CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> () {
+pub struct CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) {
     hive: Hive<B>,
     hivebin: Option<HiveBin>,
     read_from_hivebin: usize,
@@ -27,7 +27,7 @@ pub struct CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> () {
     filter: CellFilter
 }
 
-impl<B, C> CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> () {
+impl<B, C> CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) {
     pub fn new(mut hive: Hive<B>, callback: C) -> Self {
         hive.seek(SeekFrom::Start(0)).unwrap();
         Self {
@@ -64,15 +64,13 @@ impl<B, C> CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> () {
     }
 }
 
-impl<B, C> Iterator for CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> () {
+impl<B, C> Iterator for CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) {
     type Item = CellSelector;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if self.hivebin.is_none() {
-                if self.read_hivebin_header().is_err() {
-                    return None;
-                }
+            if self.hivebin.is_none() && self.read_hivebin_header().is_err() {
+                return None;
             }
 
             let start_position = self.hive.stream_position().unwrap();
@@ -153,7 +151,7 @@ impl<B, C> Iterator for CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) -> 
                             (self.callback)(self.hive.stream_position().unwrap());
                             return Some(CellSelector{
                                 offset: Offset(start_position.try_into().unwrap()),
-                                header: header,
+                                header,
                                 content
                             });
                         }

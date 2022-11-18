@@ -225,7 +225,7 @@ impl KeyNode
         let subkey = self.subkeys(hive)?
             .iter()
             .find(|s|s.borrow().name() == name)
-            .map(|kn| Rc::clone(kn));
+            .map(Rc::clone);
         Ok(subkey)
     }
 
@@ -255,7 +255,7 @@ impl SubPath<&String> for KeyNode {
 
 impl SubPath<&Vec<&str>> for KeyNode {
     fn subpath<B>(&self, path: &Vec<&str>, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
-        let path_parts: Vec<_> = path.iter().rev().map(|s| *s).collect();
+        let path_parts: Vec<_> = path.iter().rev().copied().collect();
         self.subpath_parts(path_parts, hive)
     }
 }

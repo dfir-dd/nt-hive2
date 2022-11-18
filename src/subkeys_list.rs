@@ -53,7 +53,7 @@ impl SubKeysList {
         }
     }
 
-    pub fn into_offsets<'a>(self) -> Box<dyn Iterator<Item=Offset>> {
+    pub fn into_offsets(self) -> Box<dyn Iterator<Item=Offset>> {
         match self {
             SubKeysList::IndexLeaf { items, ..} => Box::new(items.into_iter().map(|i| i.key_node_offset)),
             SubKeysList::FastLeaf { items , ..} => Box::new(items.into_iter().map(|i| i.key_node_offset)),

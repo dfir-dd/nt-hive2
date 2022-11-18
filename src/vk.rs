@@ -83,7 +83,7 @@ pub struct KeyValue {
     name_length: u16,
 
     #[br(assert(
-        [U32_FIRST_BIT | 0, U32_FIRST_BIT | 1, U32_FIRST_BIT | 3, U32_FIRST_BIT | 2, U32_FIRST_BIT | 4].contains(&data_size)
+        [U32_FIRST_BIT, U32_FIRST_BIT | 1, U32_FIRST_BIT | 3, U32_FIRST_BIT | 2, U32_FIRST_BIT | 4].contains(&data_size)
          || ! u32::has_first_bit_set(&data_size), "invalid data size: 0x{:08x}", data_size))]
     data_size: u32,
 
@@ -126,7 +126,7 @@ fn parse_registry_value<R: Read + Seek>(
     let data_size: u32 = args.2 & INV_U32_FIRST_BIT;
 
     Ok(match offset_or_data {
-        OffsetOrData::U32Data(val) => RegistryValue::RegDWord(val.clone()),
+        OffsetOrData::U32Data(val) => RegistryValue::RegDWord(*val),
         OffsetOrData::U16Data(_, val) => RegistryValue::RegDWord(*val as u32),
         OffsetOrData::U8Data(_, _, _, val) => RegistryValue::RegDWord(*val as u32),
         OffsetOrData::None(_) => RegistryValue::RegNone,

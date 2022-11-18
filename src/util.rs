@@ -33,7 +33,7 @@ pub (crate) fn parse_reg_sz(raw_string: &[u8]) -> BinResult<String> {
 pub fn parse_reg_sz_raw(raw_string: &[u8]) -> BinResult<String> {
     let (cow, _, had_errors) = UTF_16LE.decode(raw_string);
     if ! had_errors {
-        return Ok(cow.to_string());
+        Ok(cow.to_string())
     } else {
 
         let (cow, _, had_errors) = ISO_8859_15.decode(raw_string);
