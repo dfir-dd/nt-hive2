@@ -27,7 +27,6 @@
 //! # Ok(())
 //! # }
 //! ```
-
 mod hive;
 mod hivebin;
 mod util;
@@ -38,6 +37,7 @@ mod db;
 mod subkeys_list;
 mod cell_with_u8_list;
 mod cell_iterator;
+pub mod transcationlogs;
 
 pub use cell::*;
 pub use cell_iterator::{CellIterator, CellLookAhead, CellSelector, CellFilter};

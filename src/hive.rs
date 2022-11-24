@@ -1,25 +1,26 @@
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 
-use crate::nk::{KeyNodeWithMagic, KeyNodeFlags};
+use crate::nk::{KeyNodeFlags, KeyNodeWithMagic};
 use crate::{nk::KeyNode, CellIterator};
 use crate::{Cell, CellFilter, CellLookAhead};
 use binread::{BinRead, BinReaderExt, BinResult};
 
 /// Represents a registry hive file.
-/// 
+///
 /// Because most offsets in a registry hive file are relative to the start of the hive bins data,
 /// this struct provides a own [Seek] and [Read] implementation, which can work directly
 /// with those kinds of offsets. You don't know where the hive bins data starts, because [Hive] knows
 /// it (this information is stored in the hive base block). To parse data from within the hive bins data,
 /// use [Hive] as reader and use offsets read from the hive data structures.
-/// 
+///
 /// The structure of hive files is documented at <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#format-of-primary-files>
+#[derive(Clone)]
 pub struct Hive<B>
 where
     B: BinReaderExt,
 {
-    data: B,
-    base_block: Option<HiveBaseBlock>,
+    pub data: B,
+    pub(crate) base_block: Option<HiveBaseBlock>,
     data_offset: u32,
     root_cell_offset: Option<Offset>,
 }
@@ -32,11 +33,11 @@ pub enum HiveParseMode {
     Normal(Offset),
 
     /// for normal parsing of registry files
-    NormalWithBaseBlock
+    NormalWithBaseBlock,
 }
 
 /// represents an offset (usually a 32bit value) used in registry hive files
-#[derive(BinRead, Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(BinRead, Debug, Clone, Copy, Eq, PartialEq, Hash,Default)]
 pub struct Offset(pub u32);
 
 impl<B> Hive<B>
@@ -52,13 +53,13 @@ where
                 data: data,
                 base_block: None,
                 data_offset: 0x1000,
-                root_cell_offset: None
+                root_cell_offset: None,
             },
             HiveParseMode::Normal(offset) => Self {
                 data: data,
                 base_block: None,
                 data_offset: 0x1000,
-                root_cell_offset: Some(offset)
+                root_cell_offset: Some(offset),
             },
             HiveParseMode::NormalWithBaseBlock => {
                 let base_block: HiveBaseBlock = data.read_le().unwrap();
@@ -68,7 +69,7 @@ where
                     data: data,
                     base_block: Some(base_block),
                     data_offset: data_offset,
-                    root_cell_offset: Some(root_cell_offset)
+                    root_cell_offset: Some(root_cell_offset),
                 }
             }
         };
@@ -84,8 +85,13 @@ where
         }
     }
 
+   
+
     /// Is this really needed???
-    pub fn enum_subkeys(&mut self, callback: fn(&mut Self, &KeyNode) -> BinResult<()>) -> BinResult<()> {
+    pub fn enum_subkeys(
+        &mut self,
+        callback: fn(&mut Self, &KeyNode) -> BinResult<()>,
+    ) -> BinResult<()> {
         let root_key_node = self.root_key_node()?;
         callback(self, &root_key_node)?;
         Ok(())
@@ -99,14 +105,14 @@ where
 
     /// reads a data structure from the given offset. Read the documentation of [Cell]
     /// for a detailled discussion
-    /// 
+    ///
     /// # Usage
-    /// 
+    ///
     /// ```
     /// # use std::error::Error;
     /// # use std::fs::File;
     /// use nt_hive2::*;
-    /// 
+    ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
     /// # let hive_file = File::open("tests/data/testhive")?;
     /// # let mut hive = Hive::new(hive_file)?;
@@ -117,10 +123,14 @@ where
     /// ```
     pub fn read_structure<T>(&mut self, offset: Offset) -> BinResult<T>
     where
-        T: BinRead<Args=()> + std::convert::From<crate::Cell<T, ()>>,
+        T: BinRead<Args = ()> + std::convert::From<crate::Cell<T, ()>>,
     {
-        log::trace!("reading cell of type {} from offset {:08x} (was: {:08x})", std::any::type_name::<T>(), offset.0 + self.data_offset, offset.0);
-        
+        log::trace!(
+            "reading cell of type {} from offset {:08x} (was: {:08x})",
+            std::any::type_name::<T>(),
+            offset.0 + self.data_offset,
+            offset.0
+        );
         self.seek(SeekFrom::Start(offset.0.into()))?;
         let cell: Cell<T, ()> = self.read_le().unwrap();
         assert!(cell.is_allocated());
@@ -136,35 +146,37 @@ where
     pub fn root_cell_offset(&self) -> Offset {
         match &self.base_block {
             None => self.root_cell_offset.unwrap(),
-            Some(base_block) => base_block.root_cell_offset
+            Some(base_block) => base_block.root_cell_offset,
         }
     }
 
     pub fn find_root_celloffset(self) -> Option<Offset> {
         let iterator = self
-        .into_cell_iterator(|_| ())
-        .with_filter(CellFilter::AllocatedOnly);
+            .into_cell_iterator(|_| ())
+            .with_filter(CellFilter::AllocatedOnly);
         for cell in iterator {
             if let CellLookAhead::NK(nk) = cell.content() {
                 if nk.flags.contains(KeyNodeFlags::KEY_HIVE_ENTRY) {
-                    return Some(cell.offset().clone())
+                    return Some(cell.offset().clone());
                 }
             }
         }
         None
     }
 
-    pub fn into_cell_iterator<C>(self, callback: C) -> CellIterator<B, C> where C: Fn(u64) -> () {
+    pub fn into_cell_iterator<C>(self, callback: C) -> CellIterator<B, C>
+    where
+        C: Fn(u64) -> (),
+    {
         CellIterator::new(self, callback)
     }
 
     pub fn data_size(&self) -> u32 {
         match &self.base_block {
             None => todo!(),
-            Some(base_block) => base_block.data_size
+            Some(base_block) => base_block.data_size,
         }
     }
-    
 }
 
 impl<B> Read for Hive<B>
@@ -182,8 +194,7 @@ where
 {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
         let new_offset = match pos {
-            SeekFrom::Start(dst) =>
-                self
+            SeekFrom::Start(dst) => self
                 .data
                 .seek(SeekFrom::Start(dst + self.data_offset as u64))?,
             SeekFrom::End(_) => self.data.seek(pos)?,
@@ -202,11 +213,11 @@ where
 /// this data structure follows the documentation found at
 /// <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#format-of-primary-files>
 #[allow(dead_code)]
-#[derive(BinRead)]
+#[derive(BinRead, Debug,Clone,Default)]
 #[br(magic = b"regf")]
-struct HiveBaseBlock {
-    primary_sequence_number: u32,
-    secondary_sequence_number: u32,
+pub struct HiveBaseBlock {
+    pub primary_sequence_number: u32,
+    pub secondary_sequence_number: u32,
     timestamp: u64,
 
     #[br(assert(major_version==1))]
@@ -222,12 +233,12 @@ struct HiveBaseBlock {
     root_cell_offset: Offset,
 
     #[br(assert(data_size%4096 == 0))]
-    data_size: u32,
+    pub data_size: u32,
     clustering_factor: u32,
     file_name: [u16; 32],
     #[br(count = 99)]
     padding_1: Vec<u32>,
-    checksum: u32,
+    pub checksum: u32,
     #[br(count = 0x37E)]
     padding_2: Vec<u32>,
     boot_type: u32,
