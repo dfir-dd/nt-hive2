@@ -1,9 +1,8 @@
 use std::io::{ErrorKind, Read, Seek, SeekFrom, Cursor};
-
+use crate::transcationlogs::*;
 use crate::nk::{KeyNodeWithMagic, KeyNodeFlags};
 use crate::{nk::KeyNode, CellIterator};
 use crate::{Cell, CellFilter, CellLookAhead};
-use crate::transcationlogs::*;
 use binread::{BinRead, BinReaderExt, BinResult};
 
 /// Represents a registry hive file.
