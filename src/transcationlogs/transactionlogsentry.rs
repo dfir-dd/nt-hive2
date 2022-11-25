@@ -26,7 +26,7 @@ impl TransactionLogs {
         let mut new_sequence_number = 0;
         let mut index = 512;
 
-        while let Ok(log_base_block) = data.read_le::<TransctionLogsBlock>() {
+        while let Ok(log_base_block) = data.read_le::<TransactionLogsBlock>() {
 
             let size: u32 = log_base_block.size;
             let sequ: u32 = log_base_block.sequence_number;
@@ -79,16 +79,16 @@ impl TransactionLogs {
 
 #[allow(dead_code)]
 #[derive(BinRead, Debug, Clone, Copy)]
-// if the signture isn't match then stop looping as there will be no more hvle to obtain.
+// if the signature isn't match then stop looping as there will be no more hvle to obtain.
 #[br(magic = b"HvLE")]
-pub struct TransctionLogsBlock {
-    // if the block size is bigger than the size or the block size is not dvidied by 512 then break the loop
+pub struct TransactionLogsBlock {
+    // if the block size is bigger than the size or the block size is not divided by 512 then break the loop
     #[br(assert(size > BLOCK_SIZE || size % BLOCK_SIZE == 0))]
     size: u32,
     #[br(assert(flags==0))]
     flags: u32,
     sequence_number: u32,
-    //if the hbin size is bigger than the size or the hbin size is not dvidied by 512 then break the loop
+    //if the hbin size is bigger than the size or the hbin size is not divided by 512 then break the loop
     #[br(assert(hbin_data_size > HIVE_BIN_SIZE_ALIGNMENT || hbin_data_size % HIVE_BIN_SIZE_ALIGNMENT == 0))]
     hbin_data_size: u32,
     #[br(assert(dirty_pages_count!=0))]
