@@ -34,10 +34,10 @@ pub fn hash(seed: u64, data: &[u8]) -> u32 {
 
     let fin = match bytes.len() {
         0 => 0x80,
-        1 => (0x80 as u32) << 8 | bytes[0] as u32,
-        2 => (0x80 as u32) << 16 | u16::from_le_bytes(bytes[..2].try_into().unwrap()) as u32,
+        1 => 0x80_u32 << 8 | bytes[0] as u32,
+        2 => 0x80_u32 << 16 | u16::from_le_bytes(bytes[..2].try_into().unwrap()) as u32,
         3 => {
-            (0x80 as u32) << 24
+            0x80_u32 << 24
                 | u16::from_le_bytes(bytes[..2].try_into().unwrap()) as u32
                 | (bytes[2] as u32) << 16
         }

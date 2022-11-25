@@ -8,36 +8,31 @@ use std::io::SeekFrom;
 pub const BLOCK_SIZE: u32 = 512;
 pub const HVLE_START_OFFSET: u64 = 512;
 pub const HIVE_BIN_SIZE_ALIGNMENT: u32 = 4096;
+#[allow(dead_code)]
 pub const BASE_BLOCK_LENGTH_PRIMARY: u32 = 4096;
+#[allow(dead_code)]
 pub const HBIN_START_OFFSET: u64 = 600;
 
 #[derive(Debug, Clone)]
-pub struct TransctionLogs {
+pub struct TransactionLogs {
     pub d_pages: Vec<DirtPages>,
 }
 
-impl TransctionLogs {
+impl TransactionLogs {
     pub fn new<T: BinReaderExt>(data: &mut T, prim_sq_num: u32) -> BinResult<(Vec<Self>, u32)> {
         data.seek(SeekFrom::Start(HVLE_START_OFFSET))?;
-        let mut offset = 512;
+        let offset = 512;
         let mut transcationlogs = Vec::new();
-        let mut count = 0;
         let mut new_sequence_number = 0;
         let mut index = 512;
 
-        loop {
-            let log_base_block: TransctionLogsBlock = match data.read_le() {
-                Ok(n) => n,
-                Err(e) => break,
-            };
+        while let Ok(log_base_block) = data.read_le::<TransctionLogsBlock>() {
 
             let size: u32 = log_base_block.size;
-            let flag: u32 = log_base_block.flags;
             let sequ: u32 = log_base_block.sequence_number;
 
             new_sequence_number = sequ;
 
-            let hbindatasize: u32 = log_base_block.hbin_data_size;
             let drtpagecnt = log_base_block.dirty_pages_count;
 
             // get hash1 and hash2 each is 8 bytes
@@ -73,8 +68,7 @@ impl TransctionLogs {
             transcationlogs.push(Self {
                 d_pages: dirtpage,
             });
-            count = count + 1;
-            index = index + size;
+            index += size;
 
             data.seek(SeekFrom::Start(index.into()))?;
         }

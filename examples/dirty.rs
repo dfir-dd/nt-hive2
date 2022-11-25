@@ -13,6 +13,6 @@ fn main() {
     let  hive = Hive::new(&hive_file, nt_hive2::HiveParseMode::NormalWithBaseBlock).unwrap();
     // let dirty = RecoverHive::new().is_dirty(calc_csum);
     
-    fs::write(new_hive,RecoverHive::new().recover_hive(hive, path_logs));
+    fs::write(new_hive,RecoverHive::default().recover_hive(hive, path_logs));
 
 }
