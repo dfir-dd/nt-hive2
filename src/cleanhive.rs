@@ -36,7 +36,7 @@ pub fn main() -> Result<()> {
     let hive_file = PathBuf::from(&cli.hive_file);
     if ! hive_file.exists() { bail!("missing hive file: {}", cli.hive_file); }
     let logfile1 = logfile_path(&hive_file, &cli.log1_file, "LOG1")?;
-    let logfile1 = logfile_path(&hive_file, &cli.log2_file, "LOG2")?;
+    let logfile2 = logfile_path(&hive_file, &cli.log2_file, "LOG2")?;
 
     let hive_file = File::open(hive_file)?;
     let hive = Hive::new(&hive_file, nt_hive2::HiveParseMode::NormalWithBaseBlock)?;
