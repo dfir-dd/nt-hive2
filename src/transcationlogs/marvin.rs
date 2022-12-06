@@ -1,4 +1,4 @@
-
+// this is a translation of c code https://github.com/floodyberry/Marvin32/blob/master/Marvin32.c to rust code.
 // Marvin32 is a structure containing the current state of the Marvin32
 // hash. It has two fields, `lo` and `hi`, which are both u32 values.
 #[derive(Debug, Clone, Copy)]
