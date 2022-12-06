@@ -33,8 +33,10 @@ impl RecoverHive {
         calc_csum = check_sum + 1;
         if p_s_n != s_s_n {
             true
-        } else {
-            check_sum != calc_csum
+        } else if check_sum != calc_csum{
+            true
+        }else{
+            false
         }
     }
 
