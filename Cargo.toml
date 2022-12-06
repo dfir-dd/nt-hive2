@@ -1,6 +1,6 @@
 [package]
 name = "nt_hive2"
-version = "2.3.2"
+version = "2.4.0"
 edition = "2021"
 author = "Jan Starke <jan.starke@posteo.de>"
 license = "GPL-3.0"
@@ -11,9 +11,10 @@ repository = "https://github.com/janstarke/nt-hive2"
 
 [features]
 default = ["cli"]
-cli = ["regdump", "hivescan"]
+cli = ["regdump", "hivescan", "cleanhive"]
 regdump = ["simplelog", "std", "clap", "clap-verbosity-flag", "bodyfile"]
 hivescan = ["simplelog", "std", "clap", "clap-verbosity-flag", "indicatif"]
+cleanhive = ["simplelog", "std", "clap", "clap-verbosity-flag"]
 std = []
 
 [[bin]]
@@ -26,6 +27,12 @@ about = "Dumps a registry hive file"
 name = "hivescan"
 path = "src/hivescan/main.rs"
 required-features = ["hivescan", "bodyfile"]
+
+
+[[bin]]
+name = "cleanhive"
+path = "src/cleanhive.rs"
+required-features = ["cleanhive"]
 
 [lib]
 name = "nt_hive2"
@@ -43,7 +50,9 @@ winstructs = "0.3.0"
 anyhow = "1.0"
 thiserror = "1.0"
 
-clap = {version="3", optional=true}
-clap-verbosity-flag = {version="1.0.0", optional=true}
+clap = {version="4", optional=true, features=["wrap_help"]}
+clap-verbosity-flag = {version="2.0.0", optional=true}
 indicatif = {version="0.16", optional=true}
 bodyfile = {version="0.1.4", optional=true}
+serde = "1.0.147"
+serde_derive = "1.0.147"

@@ -1,5 +1,5 @@
 use std::io::{ErrorKind, Read, Seek, SeekFrom, Cursor};
-
+use crate::transcationlogs::*;
 use crate::nk::{KeyNodeWithMagic, KeyNodeFlags};
 use crate::{nk::KeyNode, CellIterator};
 use crate::{Cell, CellFilter, CellLookAhead};
@@ -14,12 +14,13 @@ use binread::{BinRead, BinReaderExt, BinResult};
 /// use [Hive] as reader and use offsets read from the hive data structures.
 /// 
 /// The structure of hive files is documented at <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#format-of-primary-files>
+#[derive(Debug,Clone,Default)]
 pub struct Hive<B>
 where
     B: BinReaderExt,
 {
-    data: B,
-    base_block: Option<HiveBaseBlock>,
+    pub data: B,
+    pub(crate) base_block: Option<HiveBaseBlock>,
     data_offset: u32,
     root_cell_offset: Option<Offset>,
 }
@@ -36,7 +37,7 @@ pub enum HiveParseMode {
 }
 
 /// represents an offset (usually a 32bit value) used in registry hive files
-#[derive(BinRead, Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(BinRead, Debug, Clone, Copy, Eq, PartialEq, Hash,Default)]
 pub struct Offset(pub u32);
 
 impl<B> Hive<B>
@@ -222,11 +223,11 @@ where
 /// this data structure follows the documentation found at
 /// <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#format-of-primary-files>
 #[allow(dead_code)]
-#[derive(BinRead)]
+#[derive(BinRead,Debug,Clone,Default)]
 #[br(magic = b"regf")]
-struct HiveBaseBlock {
-    primary_sequence_number: u32,
-    secondary_sequence_number: u32,
+pub struct HiveBaseBlock {
+    pub primary_sequence_number: u32,
+    pub secondary_sequence_number: u32,
     timestamp: u64,
 
     #[br(assert(major_version==1))]
@@ -247,7 +248,7 @@ struct HiveBaseBlock {
     file_name: [u16; 32],
     #[br(count = 99)]
     padding_1: Vec<u32>,
-    checksum: u32,
+    pub checksum: u32,
     #[br(count = 0x37E)]
     padding_2: Vec<u32>,
     boot_type: u32,
