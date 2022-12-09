@@ -61,7 +61,3 @@ impl Marvin32 {
         self.lo ^ self.hi
     }
 }
-
-
-
-
