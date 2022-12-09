@@ -94,6 +94,11 @@ fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>,
 
 fn print_values(keynode: &KeyNode) {
     for value in keynode.values() {
-        println!("\"{}\" = {}", value.name(), value.value());
+        let data_type = match value.data_type() {
+            Some(dt) => format!("{dt}:"),
+            None => "".into()
+        };
+
+        println!("\"{}\" = {data_type}{}", value.name(), value.value());
     }
 }
