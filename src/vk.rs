@@ -228,6 +228,27 @@ pub enum KeyValueDataType {
     RegFileTime = 0x0000_0010,
 }
 
+impl Display for KeyValueDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let datatype = match self {
+            KeyValueDataType::RegNone => "RegNone",
+            KeyValueDataType::RegSZ => "RegSZ",
+            KeyValueDataType::RegExpandSZ => "RegExpandSZ",
+            KeyValueDataType::RegBinary => "RegBinary",
+            KeyValueDataType::RegDWord => "RegDWord",
+            KeyValueDataType::RegDWordBigEndian => "RegDWordBigEndian",
+            KeyValueDataType::RegLink => "RegLink",
+            KeyValueDataType::RegMultiSZ => "RegMultiSZ",
+            KeyValueDataType::RegResourceList => "RegResourceList",
+            KeyValueDataType::RegFullResourceDescriptor => "RegFullResourceDescriptor",
+            KeyValueDataType::RegResourceRequirementsList => "RegResourceRequirementsList",
+            KeyValueDataType::RegQWord => "RegQWord",
+            KeyValueDataType::RegFileTime => "RegFileTime",
+        };
+        write!(f, "{datatype}")
+    }
+}
+
 pub enum RegistryValue {
     RegNone,
     RegUnknown,
@@ -255,14 +276,14 @@ impl Display for RegistryValue {
             RegistryValue::RegBinary(val) => {
                 write!(f, "{:?}", if val.len() > 16 { &val[..16] } else { val })
             }
-            RegistryValue::RegDWord(val) => write!(f, "dword:0x{:08x}", val),
-            RegistryValue::RegDWordBigEndian(val) => write!(f, "dword:0x{:08x}", val),
+            RegistryValue::RegDWord(val) => write!(f, "0x{:08x}", val),
+            RegistryValue::RegDWordBigEndian(val) => write!(f, "0x{:08x}", val),
             RegistryValue::RegLink(val) => write!(f, "\"{}\"", val),
             RegistryValue::RegMultiSZ(val) => write!(f, "{:?}", val),
             RegistryValue::RegResourceList(val) => write!(f, "\"{}\"", val),
             RegistryValue::RegFullResourceDescriptor(val) => write!(f, "\"{}\"", val),
             RegistryValue::RegResourceRequirementsList(val) => write!(f, "\"{}\"", val),
-            RegistryValue::RegQWord(val) => write!(f, "qword:0x{:016x}", val),
+            RegistryValue::RegQWord(val) => write!(f, "0x{:016x}", val),
             RegistryValue::RegFileTime => todo!(),
         }
     }
@@ -289,6 +310,12 @@ impl KeyValue {
     pub fn value(&self) -> &RegistryValue {
         &self.value
     }
+
+    /// Returns the datatype
+    pub fn data_type(&self) -> Option<&KeyValueDataType> {
+        self.data_type.as_ref()
+    }
+
 }
 
 fn parse_value_flags<R: Read + Seek>(
