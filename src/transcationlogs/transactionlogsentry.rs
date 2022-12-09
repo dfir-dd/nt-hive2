@@ -21,7 +21,7 @@ pub struct TransactionLogs {
 impl TransactionLogs {
     pub fn new<T: BinReaderExt>(data: &mut T, prim_sq_num: u32) -> BinResult<(Vec<Self>, u32)> {
         data.seek(SeekFrom::Start(HVLE_START_OFFSET))?;
-        let offset = 512;
+        let mut offset = 512;
         let mut transcationlogs = Vec::new();
         let mut new_sequence_number = 0;
         let mut index = 512;
@@ -50,31 +50,48 @@ impl TransactionLogs {
                 Err(e) => panic!("{:?}", e),
             };
             //calc the hashes and validate them
-            let new_offset = offset;
-            data.seek(SeekFrom::Start(new_offset + 40))?;
-            let mut buff = vec![0; (size - 40) as usize];
-            data.read_exact(&mut buff)?;
-            let hash1_calc = hash(0x82EF4D887A4E55C5, &buff);
-            let hash1_dec = ((hash1 >> 32) ^ hash1) as u32;
-            data.seek(SeekFrom::Start(new_offset))?;
-            let mut buff = vec![0; (size) as usize];
-            data.read_exact(&mut buff)?;
-            let hash2_calc = hash(0x82EF4D887A4E55C5, &buff[0..32]);
-            let hash2_dec = ((hash2 >> 32) ^ hash2) as u32;
-            if hash1_calc != hash1_dec || hash2_calc != hash2_dec {
-                // emm i'm still unsure if this is the right way to do it but i tried :)
-                // break;
-            };
-            transcationlogs.push(Self {
-                d_pages: dirtpage,
-            });
+            let validate_hashes = TransactionLogs::calchashes(offset, data, hash1, hash2, size)?;
+          
             index += size;
-
+            offset = index.into();
             data.seek(SeekFrom::Start(index.into()))?;
+            if !validate_hashes {
+                break;
+            }else{
+                transcationlogs.push(Self { d_pages: dirtpage });
+
+            }
         }
 
         Ok((transcationlogs, new_sequence_number))
     }
+
+    fn calchashes<T: BinReaderExt>(
+        offset: u64,
+        data: &mut T,
+        hash1: u64,
+        hash2: u64,
+        size: u32,
+    ) -> Result<bool, binread::Error> {
+        let new_offset = offset;
+        data.seek(SeekFrom::Start(new_offset + 40))?;
+        let mut buff = vec![0; (size - 40) as usize];
+        data.read_exact(&mut buff)?;
+        let hash1_marv = Marvin32::new(0x82EF4D887A4E55C5).marvin32_hash(&buff);
+        let hash1_dec = ((hash1 >> 32) ^ hash1) as u32;
+        data.seek(SeekFrom::Start(new_offset))?;
+        let mut buff = vec![0; (size) as usize];
+        data.read_exact(&mut buff)?;
+        let hash2_marv = Marvin32::new(0x82EF4D887A4E55C5).marvin32_hash(&buff[0..32]);
+        let hash2_dec = ((hash2 >> 32) ^ hash2) as u32;
+        if hash1_marv != hash1_dec || hash2_marv != hash2_dec {
+            return Ok(false);
+        } else {
+            return Ok(true);
+        }
+      
+    }
+
 }
 
 #[allow(dead_code)]
