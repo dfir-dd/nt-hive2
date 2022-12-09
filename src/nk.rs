@@ -221,10 +221,18 @@ impl KeyNode
     }
 
     /// returns the subkey with a given `name`, of [None] if there is no such subkey.
+    /// The name is compared without case sensitivity, because
+    /// 
+    /// > Each key has a name consisting of one or more printable characters.
+    /// > *Key names are not case sensitive.* Key names cannot include the backslash character (\),
+    /// > but any other printable character can be used. Value names and data can include the backslash character.
+    /// 
+    /// (<https://learn.microsoft.com/en-us/windows/win32/sysinfo/structure-of-the-registry>)
     pub fn subkey<B>(&self, name: &str, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+        let lowercase_name = name.to_lowercase();
         let subkey = self.subkeys(hive)?
             .iter()
-            .find(|s|s.borrow().name() == name)
+            .find(|s|s.borrow().name().to_lowercase() == lowercase_name)
             .map(Rc::clone);
         Ok(subkey)
     }
