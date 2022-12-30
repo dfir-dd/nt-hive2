@@ -111,7 +111,7 @@ fn main() -> Result<()> {
             let mut hive = Hive::new(data, cli.parse_mode()).unwrap();
 
             if let Some(logfileset) = cli.logfileset()? {
-                RecoverHive::default().recover_hive(hive, &logfile1.parent().unwrap().to_string_lossy()),
+                RecoverHive::default().recover_hive(hive, &logfile1.parent().unwrap().to_string_lossy());
                 hive = hive.r
             }
 
