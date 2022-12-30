@@ -15,7 +15,7 @@
 //! #
 //! # fn main() -> Result<(), Box<dyn Error>> {
 //! let hive_file = File::open("tests/data/testhive")?;
-//! let mut hive = Hive::new(hive_file)?;
+//! let mut hive = Hive::new(hive_file, HiveParseMode::NormalWithBaseBlock)?;
 //! let root_key = hive.root_key_node()?;
 //! 
 //! for sk in root_key.subkeys(&mut hive)?.iter() {

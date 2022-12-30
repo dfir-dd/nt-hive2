@@ -130,7 +130,7 @@ where
     /// 
     /// # fn main() -> Result<(), Box<dyn Error>> {
     /// # let hive_file = File::open("tests/data/testhive")?;
-    /// # let mut hive = Hive::new(hive_file)?;
+    /// # let mut hive = Hive::new(hive_file, HiveParseMode::NormalWithBaseBlock)?;
     /// # let offset = hive.root_cell_offset();
     /// let my_node: KeyNodeWithMagic = hive.read_structure(offset)?;
     /// # Ok(())

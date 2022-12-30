@@ -2,7 +2,7 @@
 name = "nt_hive2"
 version = "2.4.0"
 edition = "2021"
-author = "Jan Starke <jan.starke@posteo.de>"
+authors = ["Jan Starke <jan.starke@posteo.de>"]
 license = "GPL-3.0"
 description = "forensic parser library for Windows registry hive files"
 repository = "https://github.com/janstarke/nt-hive2"
@@ -28,7 +28,6 @@ name = "hivescan"
 path = "src/hivescan/main.rs"
 required-features = ["hivescan", "bodyfile"]
 
-
 [[bin]]
 name = "cleanhive"
 path = "src/cleanhive.rs"
@@ -49,6 +48,8 @@ simplelog = {version="0.12", optional=true}
 winstructs = "0.3.0"
 anyhow = "1.0"
 thiserror = "1.0"
+
+marvin32 = {version = "0", path = "marvin32" }
 
 clap = {version="4", optional=true, features=["wrap_help"]}
 clap-verbosity-flag = {version="2.0.0", optional=true}

@@ -65,7 +65,7 @@ impl CellHeader {
 /// 
 /// # fn main() -> Result<(), Box<dyn Error>> {
 /// # let hive_file = File::open("tests/data/testhive")?;
-/// # let mut hive = Hive::new(hive_file)?;
+/// # let mut hive = Hive::new(hive_file, HiveParseMode::NormalWithBaseBlock)?;
 /// # let offset = hive.root_cell_offset();
 /// hive.seek(SeekFrom::Start(offset.0.into()))?;
 /// let cell: Cell<KeyNodeWithMagic, ()> = hive.read_le().unwrap();
