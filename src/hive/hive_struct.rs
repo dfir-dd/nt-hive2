@@ -60,7 +60,7 @@ where
 
                 /* read baseblock */
                 let mut baseblock_cursor = Cursor::new(baseblock_data);
-                let base_block: HiveBaseBlock = baseblock_cursor.read_le().unwrap();
+                let base_block: HiveBaseBlock = baseblock_cursor.read_le_args((0,)).unwrap();
                 let data_offset = data.stream_position()? as u32;
                 let root_cell_offset = *base_block.root_cell_offset();
                 Self {

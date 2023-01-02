@@ -26,24 +26,26 @@ pub struct TransactionLog {
     #[br(args(6,))]
     base_block: HiveBaseBlock,
 
-    #[br(assert(!log_entries.is_empty()))]
+    #[br(parse_with=read_log_entries, assert(!log_entries.is_empty()))]
     log_entries: Vec<TransactionLogsEntry>
 }
 
 
 fn read_log_entries<R: Read + Seek>(
     reader: &mut R,
-    ro: &ReadOptions,
-    params: (),
+    _ro: &ReadOptions,
+    _params: (),
 ) -> BinResult<Vec<TransactionLogsEntry>> {
     let mut log_entries = Vec::new();
 
     // read until an error occurs
     loop {
-        if let Ok(entry) = reader.read_le::<TransactionLogsEntry>() {
-            log_entries.push(entry);
-        } else {
-            return Ok(log_entries);
+        match reader.read_le::<TransactionLogsEntry>() {
+            Ok(entry) => log_entries.push(entry),
+            Err(why) => {
+                log::warn!("error while reading transaction log entry: {why}");
+                return Ok(log_entries);
+            }
         }
     }
 }
