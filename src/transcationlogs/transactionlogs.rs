@@ -1,8 +1,8 @@
+use super::transactionlogfile::TransactionLogFile;
 use super::transactionlogsentry::TransactionLogs;
 use crate::hive::*;
 use binread::{io::Cursor, BinReaderExt};
 use std::io::SeekFrom;
-use std::io::Write;
 use std::{fs::File, path::Path};
 
 #[derive(Debug, Clone, Default)]
@@ -33,10 +33,8 @@ impl RecoverHive {
         calc_csum = check_sum + 1;
         if p_s_n != s_s_n {
             true
-        } else if check_sum != calc_csum{
-            true
-        }else{
-            false
+        } else {
+            check_sum != calc_csum
         }
     }
 
@@ -63,15 +61,26 @@ impl RecoverHive {
 
         let dirty = self.is_dirty(ck_sm);
         if dirty {
-            self.process_recovery(path_logs, hivechecksum, hive_sec_seq);
-            self.replay_dirtylogs(data_primary,ck_sm);
+            self.process_recovery_s(path_logs, hivechecksum, hive_sec_seq);
+            self.replay_dirtylogs(data_primary, ck_sm);
         }
 
         &self.new_hive
     }
 
+    fn process_recovery(
+        &mut self,
+        log1: TransactionLogFile,
+        log2: Option<TransactionLogFile>,
+        hive_sec_seq: u32,
+    ) { 
+        if let Some(log2) = log2 {
+            assert!(log1 < log2);
+        }
+    }
+
     // too many unwrap on this function that need to be fixed later also this function can be optimized and declared very well
-    fn process_recovery(&mut self, path_logs: &str, hivechecksum: bool, hive_sec_seq: u32) {
+    fn process_recovery_s(&mut self, path_logs: &str, hivechecksum: bool, hive_sec_seq: u32) {
         let a = format!("{}{}", path_logs, ".LOG1");
         let b = format!("{}{}", path_logs, ".LOG2");
 
@@ -202,7 +211,7 @@ impl RecoverHive {
     }
 
     ///Recover the logs using the log vec and the primary hive
-    fn replay_dirtylogs<T: BinReaderExt>(&mut self, mut data: T,checksum:u32) {
+    fn replay_dirtylogs<T: BinReaderExt>(&mut self, mut data: T, checksum: u32) {
         // data.seek(SeekFrom::Start(0x1fc)).unwrap();
 
         let mut hive_primary_file: Vec<u8> = Vec::new();
@@ -219,12 +228,10 @@ impl RecoverHive {
         //update the sequence number
         hive_primary_file.splice(4..(4 + new_sq.len()), new_sq);
         hive_primary_file.splice(8..(8 + new_sq.len()), new_sq);
-        
+
         //replace checksum  // I still miss this checksum update but I will do it next time
         let cheksum = self.primary_block.checksum.to_le_bytes();
         hive_primary_file.splice(508..(508 + cheksum.len()), cheksum);
-
-      
 
         self.new_hive = hive_primary_file
     }

@@ -57,3 +57,5 @@ indicatif = {version="0.16", optional=true}
 bodyfile = {version="0.1.4", optional=true}
 serde = "1.0.147"
 serde_derive = "1.0.147"
+derive-getters = "0.2"
+memoverlay = ">=0.1.2"

@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 use anyhow::{Result, bail};
-use clap::{Parser, ArgGroup};
+use clap::Parser;
 
 mod logfileset;
 use logfileset::LogfileSet;
@@ -111,8 +111,7 @@ fn main() -> Result<()> {
             let mut hive = Hive::new(data, cli.parse_mode()).unwrap();
 
             if let Some(logfileset) = cli.logfileset()? {
-                RecoverHive::default().recover_hive(hive, &logfile1.parent().unwrap().to_string_lossy());
-                hive = hive.r
+                hive = logfileset.recover(hive)?;
             }
 
             let root_key = &hive.root_key_node().unwrap();

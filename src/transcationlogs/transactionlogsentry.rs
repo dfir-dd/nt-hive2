@@ -1,11 +1,16 @@
-use crate::transcationlogs::dirtpagesref::DirtPagesRef;
-use crate::transcationlogs::dirtypages::DirtPages;
-use crate::transcationlogs::marvin::*;
+use std::{
+    hash::Hasher,
+    io::{Read, Seek},
+};
 
-use binread::{BinRead, BinReaderExt, BinResult};
-use std::io::SeekFrom;
+use binread::{BinRead, BinResult, ReadOptions};
+use derive_getters::Getters;
+use marvin32::Marvin32;
+
+use super::dirty_pages::{DirtyPage, DirtyPagesReference};
 
 pub const BLOCK_SIZE: u32 = 512;
+#[allow(dead_code)]
 pub const HVLE_START_OFFSET: u64 = 512;
 pub const HIVE_BIN_SIZE_ALIGNMENT: u32 = 4096;
 #[allow(dead_code)]
@@ -13,103 +18,128 @@ pub const BASE_BLOCK_LENGTH_PRIMARY: u32 = 4096;
 #[allow(dead_code)]
 pub const HBIN_START_OFFSET: u64 = 600;
 
-#[derive(Debug, Clone)]
-pub struct TransactionLogs {
-    pub d_pages: Vec<DirtPages>,
-}
-
-impl TransactionLogs {
-    pub fn new<T: BinReaderExt>(data: &mut T, prim_sq_num: u32) -> BinResult<(Vec<Self>, u32)> {
-        data.seek(SeekFrom::Start(HVLE_START_OFFSET))?;
-        let mut offset = 512;
-        let mut transcationlogs = Vec::new();
-        let mut new_sequence_number = 0;
-        let mut index = 512;
-
-        while let Ok(log_base_block) = data.read_le::<TransactionLogsBlock>() {
-
-            let size: u32 = log_base_block.size;
-            let sequ: u32 = log_base_block.sequence_number;
-
-            new_sequence_number = sequ;
-
-            let drtpagecnt = log_base_block.dirty_pages_count;
-
-            // get hash1 and hash2 each is 8 bytes
-            let hash1: u64 = log_base_block.hash1;
-            let hash2: u64 = log_base_block.hash2;
-
-            // i have set the size and offset to public >> this need to be fixed later
-            let dirtpagesref = match DirtPagesRef::read_dirt(data, drtpagecnt) {
-                Ok(n) => n,
-                Err(e) => panic!("{:?}", e),
-            };
-
-            let dirtpage = match DirtPages::read_dirt_pages(data, &dirtpagesref) {
-                Ok(n) => n,
-                Err(e) => panic!("{:?}", e),
-            };
-            //calc the hashes and validate them
-            let validate_hashes = TransactionLogs::calchashes(offset, data, hash1, hash2, size)?;
-          
-            index += size;
-            offset = index.into();
-            data.seek(SeekFrom::Start(index.into()))?;
-            if !validate_hashes {
-                break;
-            }else{
-                transcationlogs.push(Self { d_pages: dirtpage });
-
-            }
-        }
-
-        Ok((transcationlogs, new_sequence_number))
-    }
-
-    fn calchashes<T: BinReaderExt>(
-        offset: u64,
-        data: &mut T,
-        hash1: u64,
-        hash2: u64,
-        size: u32,
-    ) -> Result<bool, binread::Error> {
-        let new_offset = offset;
-        data.seek(SeekFrom::Start(new_offset + 40))?;
-        let mut buff = vec![0; (size - 40) as usize];
-        data.read_exact(&mut buff)?;
-        let hash1_marv = Marvin32::new(0x82EF4D887A4E55C5).marvin32_hash(&buff);
-        let hash1_dec = ((hash1 >> 32) ^ hash1) as u32;
-        data.seek(SeekFrom::Start(new_offset))?;
-        let mut buff = vec![0; (size) as usize];
-        data.read_exact(&mut buff)?;
-        let hash2_marv = Marvin32::new(0x82EF4D887A4E55C5).marvin32_hash(&buff[0..32]);
-        let hash2_dec = ((hash2 >> 32) ^ hash2) as u32;
-        if hash1_marv != hash1_dec || hash2_marv != hash2_dec {
-            return Ok(false);
-        } else {
-            return Ok(true);
-        }
-      
-    }
-
-}
-
-#[allow(dead_code)]
-#[derive(BinRead, Debug, Clone, Copy)]
-// if the signature isn't match then stop looping as there will be no more hvle to obtain.
-#[br(magic = b"HvLE")]
-pub struct TransactionLogsBlock {
-    // if the block size is bigger than the size or the block size is not divided by 512 then break the loop
+/// <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#new-format>
+#[derive(BinRead, Debug, Clone, Default, Getters)]
+#[br(magic = b"HvLE", assert(hash1 == calc_hash1(&dirty_pages_references, &dirty_pages)))]
+pub struct TransactionLogsEntry {
+    /// Size of a current log entry in bytes
     #[br(assert(size > BLOCK_SIZE || size % BLOCK_SIZE == 0))]
     size: u32,
+
+    /// Partial copy of the Flags field of the base block at the time of
+    /// creation of a current log entry (see below)
+    ///
+    /// The Flags field of a log entry is set to 0x00000001 when a value of
+    /// the Flags field of the base block has the bit mask 0x00000001 set,
+    /// otherwise the Flags field of a log entry is set to 0x00000000. During
+    /// recovery, the bit mask 0x00000001 is set or unset in the Flags field of
+    /// the base block according to a value taken from a log entry being
+    /// applied. This means that only the bit mask 0x00000001 is saved to or
+    /// restored from a log entry.
     #[br(assert(flags==0))]
     flags: u32,
+
+    /// This number constitutes a possible value of the Primary sequence number
+    /// and Secondary sequence number fields of the base block in memory after
+    /// a current log entry is applied (these fields are not modified before
+    /// the write operation on the recovered hive)
+    ///
+    /// If a log entry with a sequence number N is not followed by a log entry
+    /// with a sequence number N + 1, recovery stops after applying a log entry
+    /// with a sequence number N. If the first log entry doesn't contain an
+    /// expected sequence number (equal to a primary sequence number of the
+    /// base block in a transaction log file, not less than a secondary
+    /// sequence number of the valid base block in a primary file), recovery
+    /// stops.
     sequence_number: u32,
-    //if the hbin size is bigger than the size or the hbin size is not divided by 512 then break the loop
+
+    /// Copy of the Hive bins data size field of the base block at the time of
+    /// creation of a current log entry
     #[br(assert(hbin_data_size > HIVE_BIN_SIZE_ALIGNMENT || hbin_data_size % HIVE_BIN_SIZE_ALIGNMENT == 0))]
     hbin_data_size: u32,
-    #[br(assert(dirty_pages_count!=0))]
+
+    /// Number of dirty pages attached to a current log entry
+    #[br(assert(dirty_pages_count != 0))]
     dirty_pages_count: u32,
+
+    /// Hash-1 is the Marvin32 hash of the data starting from the beginning of
+    /// the first page reference of a current log entry with the length of
+    /// Size - 40 bytes.
+    ///
+    /// If a log entry has a wrong value in the field Hash-1, Hash-2, or Hive
+    /// bins data size (i.e. it isn't multiple of 4096 bytes), recovery stops,
+    /// only previous log entries (preceding a bogus one) are applied.
     hash1: u64,
+
+    /// Hash-2 is the Marvin32 hash of the first 32 bytes of a current log
+    /// entry (including the Hash-1 calculated before).
+    #[br(assert(hash2 == calc_hash2(vec![size, flags, sequence_number, hbin_data_size, dirty_pages_count], hash1)))]
     hash2: u64,
+
+    /// A dirty page reference describes a single page to be written to a
+    /// primary file, and it has the following structure:
+    /// | Offset | Field | Length | Description |
+    /// |-|-|-|-|
+    /// |0|4|Offset|Offset of a page in a primary file (in bytes), relative from the start of the hive bins data|
+    /// |4|4|Size|Size of a page in bytes|
+    #[br(count = dirty_pages_count,
+            assert(dirty_pages_references.len() == dirty_pages_count.try_into().unwrap()))]
+    dirty_pages_references: Vec<DirtyPagesReference>,
+
+    #[br(parse_with = read_dirty_pages, args(&dirty_pages_references[..]),
+            assert(dirty_pages_references.len() == dirty_pages.len()))]
+    dirty_pages: Vec<DirtyPage>,
+}
+
+impl From<TransactionLogsEntry> for Vec<DirtyPagesReference> {
+    fn from(entry: TransactionLogsEntry) -> Self {
+        entry.dirty_pages_references
+    }
+}
+
+impl From<TransactionLogsEntry> for Vec<DirtyPage> {
+    fn from(entry: TransactionLogsEntry) -> Self {
+        entry.dirty_pages
+    }
+}
+
+fn read_dirty_pages<R: Read + Seek>(
+    reader: &mut R,
+    _ro: &ReadOptions,
+    params: (&[DirtyPagesReference],),
+) -> BinResult<Vec<DirtyPage>> {
+    let mut dirty_pages = Vec::new();
+    for dirty_pages_reference in params.0 {
+        // allocate memory
+        let mut data = vec![0; *dirty_pages_reference.size() as usize];
+
+        // obtain the data based on the length of the page size
+        reader.read_exact(data.as_mut_slice())?;
+
+        dirty_pages.push(DirtyPage::new(dirty_pages_reference, data));
+    }
+    Ok(dirty_pages)
+}
+
+fn calc_hash1(
+    dirty_pages_references: &Vec<DirtyPagesReference>,
+    dirty_pages: &Vec<DirtyPage>,
+) -> u64 {
+    let mut hasher = Marvin32::new(0x82EF4D887A4E55C5);
+    for reference in dirty_pages_references {
+        hasher.write_u32(reference.offset().0);
+        hasher.write_u32(*reference.size());
+    }
+    for page in dirty_pages {
+        hasher.write(page.as_ref());
+    }
+    hasher.finish()
+}
+fn calc_hash2(header_fields: Vec<u32>, hash1: u64) -> u64 {
+    let mut hasher = Marvin32::new(0x82EF4D887A4E55C5);
+    for field in header_fields {
+        hasher.write_u32(field);
+    }
+    hasher.write_u64(hash1);
+    hasher.finish()
 }
