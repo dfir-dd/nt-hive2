@@ -287,7 +287,7 @@ fn read_values<R: Read + Seek>(
             None => Vec::new(),
             Some(kv_list_cell) => {
                 let kv_list: &KeyValueList = kv_list_cell.data();
-                let mut result = Vec::with_capacity(kv_list.key_value_offsets.len() as usize);
+                let mut result = Vec::with_capacity(kv_list.key_value_offsets.len());
                 for offset in kv_list.key_value_offsets.iter() {
                     reader.seek(SeekFrom::Start(offset.0.into()))?;
                     let vk_result: BinResult<Cell<KeyValueWithMagic, ()>> = reader.read_le();
