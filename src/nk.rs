@@ -220,7 +220,7 @@ impl KeyNode
         Ok(None)
     }
 
-    /// returns the subkey with a given `name`, of [None] if there is no such subkey.
+    /// returns the subkey with a given `name`, or [`None`] if there is no such subkey.
     /// The name is compared without case sensitivity, because
     /// 
     /// > Each key has a name consisting of one or more printable characters.
