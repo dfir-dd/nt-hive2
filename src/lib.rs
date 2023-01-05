@@ -37,7 +37,7 @@ mod db;
 mod subkeys_list;
 mod cell_with_u8_list;
 mod cell_iterator;
-pub mod transcationlogs;
+pub mod transactionlog;
 
 pub use cell::*;
 pub use cell_iterator::{CellIterator, CellLookAhead, CellSelector, CellFilter};

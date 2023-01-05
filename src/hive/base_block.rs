@@ -54,14 +54,18 @@ pub struct HiveBaseBlock {
 
     /// XOR-32 checksum of the previous 508 bytes
     pub checksum: u32,
-    #[br(count = 0x37E)]
+
+    /// RESERVED, read only if this is not a transaction log file
+    #[br(count = 0x37E, if(file_type != 6))]
     padding_2: Vec<u32>,
 
-    /// This field has no meaning on a disk
-    boot_type: u32,
+    /// This field has no meaning on a disk, read only if this is not a transaction log file
+    #[br(if(file_type != 6))]
+    boot_type: Option<u32>,
 
-    /// This field has no meaning on a disk
-    boot_recover: u32,
+    /// This field has no meaning on a disk, read only if this is not a transaction log file
+    #[br(if(file_type != 6))]
+    boot_recover: Option<u32>,
 }
 
 impl HiveBaseBlock {

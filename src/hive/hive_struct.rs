@@ -1,5 +1,5 @@
 use crate::nk::{KeyNodeFlags, KeyNodeWithMagic};
-use crate::transcationlogs::TransactionLog;
+use crate::transactionlog::TransactionLog;
 use crate::{nk::KeyNode, CellIterator};
 use crate::{Cell, CellFilter, CellLookAhead, HiveParseMode, Offset};
 use binread::{BinRead, BinReaderExt, BinResult};

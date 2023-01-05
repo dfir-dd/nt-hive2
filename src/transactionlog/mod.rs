@@ -11,7 +11,7 @@ mod transactionlogsentry;
 //mod dirtpagesref;
 //mod dirtypages;
 mod dirty_pages;
-mod transactionlogfile;
+//mod transactionlogfile;
 //pub mod transactionlogs;
 
 pub use dirty_pages::*;
