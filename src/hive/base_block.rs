@@ -3,11 +3,13 @@ use derive_getters::Getters;
 
 use crate::Offset;
 
+use super::FileType;
+
 /// this data structure follows the documentation found at
 /// <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#format-of-primary-files>
 #[allow(dead_code)]
 #[derive(BinRead, Debug, Clone, Default, Getters)]
-#[br(magic = b"regf", import(expected_file_type: u32))]
+#[br(magic = b"regf", import(expected_file_type: FileType))]
 pub struct HiveBaseBlock {
     /// This number is incremented by 1 in the beginning of a write operation on the primary file
     primary_sequence_number: u32,
@@ -28,7 +30,7 @@ pub struct HiveBaseBlock {
 
     /// 0 means primary file
     #[br(assert(file_type == expected_file_type))]
-    file_type: u32,
+    file_type: FileType,
 
     /// 1 means direct memory load
     #[br(assert(file_format==1))]
@@ -56,15 +58,15 @@ pub struct HiveBaseBlock {
     pub checksum: u32,
 
     /// RESERVED, read only if this is not a transaction log file
-    #[br(count = 0x37E, if(file_type != 6))]
+    #[br(count = 0x37E, if(file_type == FileType::HiveFile))]
     padding_2: Vec<u32>,
 
     /// This field has no meaning on a disk, read only if this is not a transaction log file
-    #[br(if(file_type != 6))]
+    #[br(if(file_type == FileType::HiveFile))]
     boot_type: Option<u32>,
 
     /// This field has no meaning on a disk, read only if this is not a transaction log file
-    #[br(if(file_type != 6))]
+    #[br(if(file_type == FileType::HiveFile))]
     boot_recover: Option<u32>,
 }
 

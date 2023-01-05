@@ -3,7 +3,7 @@ use std::{io::{Read, Seek}, fs::File};
 use binread::{BinRead, ReadOptions, BinResult, BinReaderExt};
 use derive_getters::Getters;
 
-use crate::hive::HiveBaseBlock;
+use crate::hive::{HiveBaseBlock, FileType};
 
 use self::transactionlogsentry::TransactionLogsEntry;
 
@@ -23,7 +23,7 @@ pub struct TransactionLog {
     /// A modified partial backup copy of a base block is stored in the first
     /// sector of a transaction log file in the same way as in the old format
     /// and for the same purpose. However, the File type field is set to 6.
-    #[br(args(6,))]
+    #[br(args(FileType::TransactionLogVariant3,))]
     base_block: HiveBaseBlock,
 
     #[br(parse_with=read_log_entries, assert(!log_entries.is_empty()))]

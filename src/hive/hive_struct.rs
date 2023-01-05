@@ -6,6 +6,7 @@ use binread::{BinRead, BinReaderExt, BinResult};
 use memoverlay::MemOverlay;
 use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
 
+use super::FileType;
 use super::base_block::HiveBaseBlock;
 use super::base_block_raw::HiveBaseBlockRaw;
 
@@ -60,7 +61,7 @@ where
 
                 /* read baseblock */
                 let mut baseblock_cursor = Cursor::new(baseblock_data);
-                let base_block: HiveBaseBlock = baseblock_cursor.read_le_args((0,)).unwrap();
+                let base_block: HiveBaseBlock = baseblock_cursor.read_le_args((FileType::HiveFile,)).unwrap();
                 let data_offset = data.stream_position()? as u32;
                 let root_cell_offset = *base_block.root_cell_offset();
                 Self {
@@ -89,7 +90,7 @@ where
 
     pub fn is_primary_file(&self) -> bool {
         if let Some(base_block) = &self.base_block {
-            *base_block.file_type() == 0
+            *base_block.file_type() == FileType::HiveFile
         } else {
             false
         }

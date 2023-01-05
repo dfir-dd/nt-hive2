@@ -18,9 +18,33 @@ pub const BASE_BLOCK_LENGTH_PRIMARY: u32 = 4096;
 #[allow(dead_code)]
 pub const HBIN_START_OFFSET: u64 = 600;
 
+#[derive(BinRead, Debug, Clone, Default, Getters)]
+pub struct Marvin32Hash {
+    p0: u32,
+    p1: u32,
+}
+
+impl Marvin32Hash {
+    pub fn collapse(&self) -> u32 {
+        self.p0 ^ self.p1
+    }
+}
+
+impl From<&Marvin32Hash> for u32 {
+    fn from(value: &Marvin32Hash) -> Self {
+        value.collapse()
+    }
+}
+
+impl From<Marvin32Hash> for u32 {
+    fn from(value: Marvin32Hash) -> Self {
+        value.collapse()
+    }
+}
+
 /// <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#new-format>
 #[derive(BinRead, Debug, Clone, Default, Getters)]
-#[br(magic = b"HvLE", assert(hash1 == calc_hash1(&dirty_pages_references, &dirty_pages)))]
+#[br(magic = b"HvLE", assert(hash1.collapse() == calc_hash1(&dirty_pages_references, &dirty_pages, &slack), "expected 0x{:08x}", hash1.collapse()))]
 pub struct TransactionLogsEntry {
     /// Size of a current log entry in bytes
     #[br(assert(size > BLOCK_SIZE || size % BLOCK_SIZE == 0))]
@@ -69,12 +93,12 @@ pub struct TransactionLogsEntry {
     /// If a log entry has a wrong value in the field Hash-1, Hash-2, or Hive
     /// bins data size (i.e. it isn't multiple of 4096 bytes), recovery stops,
     /// only previous log entries (preceding a bogus one) are applied.
-    hash1: u64,
+    hash1: Marvin32Hash,
 
     /// Hash-2 is the Marvin32 hash of the first 32 bytes of a current log
     /// entry (including the Hash-1 calculated before).
-    #[br(assert(hash2 == calc_hash2(vec![size, flags, sequence_number, hbin_data_size, dirty_pages_count], hash1)))]
-    hash2: u64,
+    #[br(assert(hash2.collapse() == calc_hash2(vec![size, flags, sequence_number, hbin_data_size, dirty_pages_count, *hash1.p0(), *hash1.p1()]), "expected 0x{:08x}", hash2.collapse()))]
+    hash2: Marvin32Hash,
 
     /// A dirty page reference describes a single page to be written to a
     /// primary file, and it has the following structure:
@@ -89,6 +113,13 @@ pub struct TransactionLogsEntry {
     #[br(parse_with = read_dirty_pages, args(&dirty_pages_references[..]),
             assert(dirty_pages_references.len() == dirty_pages.len()))]
     dirty_pages: Vec<DirtyPage>,
+
+    #[br(calc = ((dirty_pages_references.len() * 8) + dirty_pages.iter().fold(0, |acc, x| acc+x.as_ref().len())).try_into().unwrap())]
+    payload_size: u32,
+
+    /// this is required to calculate the hash-1
+    #[br(count = size - (40 + payload_size))]
+    slack: Vec<u8>,
 }
 
 impl From<TransactionLogsEntry> for Vec<DirtyPagesReference> {
@@ -124,7 +155,8 @@ fn read_dirty_pages<R: Read + Seek>(
 fn calc_hash1(
     dirty_pages_references: &Vec<DirtyPagesReference>,
     dirty_pages: &Vec<DirtyPage>,
-) -> u64 {
+    slack: &[u8]
+) -> u32 {
     let mut hasher = Marvin32::new(0x82EF4D887A4E55C5);
     for reference in dirty_pages_references {
         hasher.write_u32(reference.offset().0);
@@ -133,13 +165,15 @@ fn calc_hash1(
     for page in dirty_pages {
         hasher.write(page.as_ref());
     }
-    hasher.finish()
+    hasher.write(slack);
+    let res = hasher.finish().try_into().unwrap();
+    res
 }
-fn calc_hash2(header_fields: Vec<u32>, hash1: u64) -> u64 {
+fn calc_hash2(header_fields: Vec<u32>) -> u32 {
     let mut hasher = Marvin32::new(0x82EF4D887A4E55C5);
+    hasher.write(b"HvLE");
     for field in header_fields {
         hasher.write_u32(field);
     }
-    hasher.write_u64(hash1);
-    hasher.finish()
+    hasher.finish().try_into().unwrap()
 }
