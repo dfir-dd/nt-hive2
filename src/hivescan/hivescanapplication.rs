@@ -28,7 +28,6 @@ pub (crate) struct HiveScanApplication{
     #[allow(dead_code)]
     cli: Args,
 
-    data_offset: u32,
     root_offset: Offset,
     hive: Option<Hive<File, CleanHive>>
 }
@@ -37,7 +36,6 @@ impl HiveScanApplication {
     pub fn new(cli: Args, hive: Hive<File, CleanHive>) -> Self {
         Self {
             cli,
-            data_offset: *hive.data_offset(),
             root_offset: hive.root_cell_offset(),
             hive: Some(hive) 
         }
@@ -90,7 +88,7 @@ impl HiveScanApplication {
             println!("[{}]; last change at {}, found at offset 0x{:x}", 
                 path,
                 entry.nk().timestamp().to_rfc3339(),
-                entry.offset().0 + self.data_offset);
+                entry.offset().0 + BASEBLOCK_SIZE as u32);
             self.print_values_of(entry);
             println!();
         }

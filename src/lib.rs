@@ -41,6 +41,6 @@ pub mod transactionlog;
 
 pub use cell::*;
 pub use cell_iterator::{CellIterator, CellLookAhead, CellSelector, CellFilter};
-pub use hive::{Hive, Offset, HiveParseMode, ContainsHive, BaseBlock, CleanHive, DirtyHive};
+pub use hive::{Hive, Offset, HiveParseMode, ContainsHive, BaseBlock, CleanHive, DirtyHive, BASEBLOCK_SIZE};
 pub use nk::{KeyNode, KeyNodeWithMagic, SubPath};
 pub use vk::{KeyValue, KeyValueWithMagic, RegistryValue};

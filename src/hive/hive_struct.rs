@@ -54,7 +54,6 @@ where
 {
     pub data: MemOverlay<B>,
     pub(crate) base_block: Option<HiveBaseBlock>,
-    data_offset: u32,
     root_cell_offset: Option<Offset>,
     sequence_number: u32,
     status: PhantomData<S>,
@@ -74,7 +73,6 @@ where
             HiveParseMode::Raw => Self {
                 data,
                 base_block: None,
-                data_offset: 0x1000,
                 root_cell_offset: None,
                 sequence_number: 0,
                 status: PhantomData,
@@ -82,7 +80,6 @@ where
             HiveParseMode::Normal(offset) => Self {
                 data,
                 base_block: None,
-                data_offset: 0x1000,
                 root_cell_offset: Some(offset),
                 sequence_number: 0,
                 status: PhantomData,
@@ -99,13 +96,16 @@ where
                 let base_block: HiveBaseBlock = baseblock_cursor
                     .read_le_args((FileType::HiveFile,))
                     .unwrap();
-                let data_offset = data.stream_position()? as u32;
+                let data_offset = data.stream_position()? as usize;
+                if data_offset != BASEBLOCK_SIZE {
+                    panic!("we assume a base block size of {BASEBLOCK_SIZE} bytes, but the current has a size of {data_offset} bytes");
+                }
+
                 let root_cell_offset = *base_block.root_cell_offset();
                 let sequence_number = *base_block.primary_sequence_number();
                 Self {
                     data,
                     base_block: Some(base_block),
-                    data_offset,
                     root_cell_offset: Some(root_cell_offset),
                     sequence_number,
                     status: PhantomData,
@@ -137,7 +137,6 @@ where
         Hive::<B, CleanHive> {
             data: self.data,
             base_block: self.base_block,
-            data_offset: self.data_offset,
             root_cell_offset: self.root_cell_offset,
             sequence_number: self.sequence_number,
             status: PhantomData,
@@ -239,7 +238,7 @@ where
         log::trace!(
             "reading cell of type {} from offset {:08x} (was: {:08x})",
             std::any::type_name::<T>(),
-            offset.0 + self.data_offset,
+            offset.0 + BASEBLOCK_SIZE as u32,
             offset.0
         );
 
@@ -250,8 +249,8 @@ where
     }
 
     /// returns the start of the hive bins data
-    pub fn data_offset(&self) -> &u32 {
-        &self.data_offset
+    pub fn data_offset(&self) -> u32 {
+        BASEBLOCK_SIZE as u32
     }
 
     /// returns the offset of the root cell
@@ -308,16 +307,16 @@ where
         let new_offset = match pos {
             SeekFrom::Start(dst) => self
                 .data
-                .seek(SeekFrom::Start(dst + self.data_offset as u64))?,
+                .seek(SeekFrom::Start(dst + BASEBLOCK_SIZE as u64))?,
             SeekFrom::End(_) => self.data.seek(pos)?,
             SeekFrom::Current(_) => self.data.seek(pos)?,
         };
-        if new_offset < self.data_offset as u64 {
+        if new_offset < BASEBLOCK_SIZE as u64 {
             return Err(std::io::Error::new(
                 ErrorKind::InvalidData,
                 format!("tried seek to invalid offset: {:?}", pos),
             ));
         }
-        Ok(new_offset - self.data_offset as u64)
+        Ok(new_offset - BASEBLOCK_SIZE as u64)
     }
 }

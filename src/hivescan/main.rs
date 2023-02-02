@@ -9,6 +9,7 @@ mod regtreeentry;
 mod hivescanapplication;
 use hivescanapplication::*;
 
+
 fn main() -> Result<()> {
     let cli = Args::parse();
     let _ = SimpleLogger::init(cli.verbose.log_level_filter(), Config::default());
