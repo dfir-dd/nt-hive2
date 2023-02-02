@@ -1,6 +1,6 @@
 [package]
 name = "nt_hive2"
-version = "2.4.0"
+version = "3.0.0"
 edition = "2021"
 authors = ["Jan Starke <jan.starke@posteo.de>"]
 license = "GPL-3.0"
@@ -39,6 +39,7 @@ path = "src/lib.rs"
 
 [dependencies]
 binread = "2.2"
+binwrite = "0.2"
 displaydoc = "0.2"
 bitflags = "1.3"
 encoding_rs = "0.8"
@@ -59,3 +60,6 @@ serde = "1.0.147"
 serde_derive = "1.0.147"
 derive-getters = "0.2"
 memoverlay = ">=0.1.2"
+num-traits = "0.2"
+num-derive = "0.3"
+byteorder = "1.4"

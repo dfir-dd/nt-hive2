@@ -30,11 +30,11 @@ pub (crate) struct HiveScanApplication{
 
     data_offset: u32,
     root_offset: Offset,
-    hive: Option<Hive<File>>
+    hive: Option<Hive<File, CleanHive>>
 }
 
 impl HiveScanApplication {
-    pub fn new(cli: Args, hive: Hive<File>) -> Self {
+    pub fn new(cli: Args, hive: Hive<File, CleanHive>) -> Self {
         Self {
             cli,
             data_offset: *hive.data_offset(),

@@ -1,14 +1,41 @@
 use crate::nk::{KeyNodeFlags, KeyNodeWithMagic};
-use crate::transactionlog::TransactionLog;
+use crate::transactionlog::{ApplicationResult, TransactionLogsEntry};
 use crate::{nk::KeyNode, CellIterator};
 use crate::{Cell, CellFilter, CellLookAhead, HiveParseMode, Offset};
 use binread::{BinRead, BinReaderExt, BinResult};
 use memoverlay::MemOverlay;
+use std::collections::BTreeMap;
 use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
+use std::marker::PhantomData;
 
-use super::FileType;
 use super::base_block::HiveBaseBlock;
 use super::base_block_raw::HiveBaseBlockRaw;
+use super::{CleanHive, ContainsHive, DirtyHive, Dissolve, FileType, HiveStatus, BASEBLOCK_SIZE};
+
+pub trait BaseBlock {
+    fn base_block(&self) -> Option<&HiveBaseBlock>;
+}
+
+impl<B, S> BaseBlock for Hive<B, S>
+where
+    B: BinReaderExt,
+    S: HiveStatus,
+{
+    fn base_block(&self) -> Option<&HiveBaseBlock> {
+        self.base_block.as_ref()
+    }
+}
+
+impl<B> ContainsHive<B> for Hive<B, DirtyHive> where B: BinReaderExt {}
+
+impl<B> Dissolve<B> for Hive<B, DirtyHive>
+where
+    B: BinReaderExt,
+{
+    fn dissolve(self) -> (Hive<B, DirtyHive>, BTreeMap<u32, TransactionLogsEntry>) {
+        (self, Default::default())
+    }
+}
 
 /// Represents a registry hive file.
 ///
@@ -20,19 +47,23 @@ use super::base_block_raw::HiveBaseBlockRaw;
 ///
 /// The structure of hive files is documented at <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#format-of-primary-files>
 #[derive(Debug)]
-pub struct Hive<B>
+pub struct Hive<B, S>
 where
     B: BinReaderExt,
+    S: HiveStatus,
 {
     pub data: MemOverlay<B>,
     pub(crate) base_block: Option<HiveBaseBlock>,
     data_offset: u32,
     root_cell_offset: Option<Offset>,
+    sequence_number: u32,
+    status: PhantomData<S>,
 }
 
-impl<B> Hive<B>
+impl<B, S> Hive<B, S>
 where
     B: BinReaderExt,
+    S: HiveStatus,
 {
     /// creates a new [Hive] object. This includes parsing the HiveBaseBlock and determining
     /// the start of the hive bins data.
@@ -45,30 +76,39 @@ where
                 base_block: None,
                 data_offset: 0x1000,
                 root_cell_offset: None,
+                sequence_number: 0,
+                status: PhantomData,
             },
             HiveParseMode::Normal(offset) => Self {
                 data,
                 base_block: None,
                 data_offset: 0x1000,
                 root_cell_offset: Some(offset),
+                sequence_number: 0,
+                status: PhantomData,
             },
             HiveParseMode::NormalWithBaseBlock => {
                 /* preread the baseblock data to prevent seeking */
-                let mut baseblock_data = [0; 4096];
+                let mut baseblock_data = [0; BASEBLOCK_SIZE];
                 data.read_exact(&mut baseblock_data)?;
 
                 Self::validate_checksum(&baseblock_data)?;
 
                 /* read baseblock */
                 let mut baseblock_cursor = Cursor::new(baseblock_data);
-                let base_block: HiveBaseBlock = baseblock_cursor.read_le_args((FileType::HiveFile,)).unwrap();
+                let base_block: HiveBaseBlock = baseblock_cursor
+                    .read_le_args((FileType::HiveFile,))
+                    .unwrap();
                 let data_offset = data.stream_position()? as u32;
                 let root_cell_offset = *base_block.root_cell_offset();
+                let sequence_number = *base_block.primary_sequence_number();
                 Self {
                     data,
                     base_block: Some(base_block),
                     data_offset,
                     root_cell_offset: Some(root_cell_offset),
+                    sequence_number,
+                    status: PhantomData,
                 }
             }
         };
@@ -76,7 +116,7 @@ where
         Ok(me)
     }
 
-    fn validate_checksum(baseblock_data: &[u8; 4096]) -> BinResult<()> {
+    fn validate_checksum(baseblock_data: &[u8; BASEBLOCK_SIZE]) -> BinResult<()> {
         let mut cursor = Cursor::new(baseblock_data);
         let _: HiveBaseBlockRaw = match cursor.read_le() {
             Ok(r) => r,
@@ -87,7 +127,69 @@ where
         };
         Ok(())
     }
+}
 
+impl<B> Hive<B, DirtyHive>
+where
+    B: BinReaderExt,
+{
+    pub fn treat_hive_as_clean(self) -> Hive<B, CleanHive> {
+        Hive::<B, CleanHive> {
+            data: self.data,
+            base_block: self.base_block,
+            data_offset: self.data_offset,
+            root_cell_offset: self.root_cell_offset,
+            sequence_number: self.sequence_number,
+            status: PhantomData,
+        }
+    }
+
+    pub fn apply_transaction_log(&mut self, log: TransactionLogsEntry) -> ApplicationResult {
+        let base_block = self.base_block.as_ref().unwrap();
+        if *base_block.secondary_sequence_number() != 0
+            && *log.sequence_number() != base_block.secondary_sequence_number() + 1
+        {
+            log::warn!(
+                "abort applying transaction logs at sequence number {}",
+                base_block.secondary_sequence_number()
+            );
+            log::warn!(
+                "next log entry had transaction number: {}",
+                log.sequence_number()
+            );
+            return ApplicationResult::SequenceNumberDoesNotMatch;
+        }
+        log::info!(
+            "applying entry with sequence number {}",
+            log.sequence_number()
+        );
+
+        for (reference, page) in log.dirty_pages_references().iter().zip(log.dirty_pages()) {
+            log::info!(
+                "placing patch of size {} at 0x{:08x}",
+                page.len(),
+                base_block.root_cell_offset().0 + reference.offset().0
+            );
+
+            if let Err(why) = self.data.add_bytes_at(
+                (base_block.root_cell_offset().0 + reference.offset().0).into(),
+                page,
+            ) {
+                panic!("unable to apply memory patch: {why}");
+            }
+        }
+
+        if let Some(ref mut base_block) = self.base_block {
+            base_block.set_sequence_number(*log.sequence_number());
+        }
+        ApplicationResult::Applied
+    }
+}
+
+impl<B> Hive<B, CleanHive>
+where
+    B: BinReaderExt,
+{
     pub fn is_primary_file(&self) -> bool {
         if let Some(base_block) = &self.base_block {
             *base_block.file_type() == FileType::HiveFile
@@ -187,40 +289,9 @@ where
             Some(base_block) => *base_block.data_size(),
         }
     }
-
-    pub fn with_transaction_log(mut self, log: TransactionLog) -> std::io::Result<Self> {
-        let mut sequence_number = match self.base_block {
-            Some(ref base_block) => *base_block.primary_sequence_number(),
-            None => 0,
-        };
-
-        for entry in log.log_entries() {
-            if sequence_number != 0 && *entry.sequence_number() != sequence_number + 1 {
-                log::warn!("abort applying transaction logs at sequence number {sequence_number}");
-                log::warn!(
-                    "next log entry has transaction number: {}",
-                    entry.sequence_number()
-                );
-                break;
-            }
-            sequence_number = *entry.sequence_number();
-
-            for (reference, page) in entry
-                .dirty_pages_references()
-                .iter()
-                .zip(entry.dirty_pages())
-            {
-                self.data.add_bytes_at(
-                    (log.base_block().root_cell_offset().0 + reference.offset().0).into(),
-                    page,
-                )?;
-            }
-        }
-        Ok(self)
-    }
 }
 
-impl<B> Read for Hive<B>
+impl<B> Read for Hive<B, CleanHive>
 where
     B: BinReaderExt,
 {
@@ -229,7 +300,7 @@ where
     }
 }
 
-impl<B> Seek for Hive<B>
+impl<B> Seek for Hive<B, CleanHive>
 where
     B: BinReaderExt,
 {

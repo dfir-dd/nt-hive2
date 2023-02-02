@@ -17,6 +17,14 @@ impl DirtyPage {
             data
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
 }
 
 impl AsRef<[u8]> for DirtyPage {

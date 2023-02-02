@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{bail, Result};
 use clap::Parser;
-use nt_hive2::Hive;
+use nt_hive2::{Hive, ContainsHive};
 use simplelog::{Config, SimpleLogger};
 
 #[derive(Parser)]
@@ -47,7 +47,8 @@ pub fn main() -> Result<()> {
     let hive_file = File::open(hive_file)?;
     let mut hive = Hive::new(&hive_file, nt_hive2::HiveParseMode::NormalWithBaseBlock)?
         .with_transaction_log(logfile1.try_into()?)?
-        .with_transaction_log(logfile2.try_into()?)?;
+        .with_transaction_log(logfile2.try_into()?)?
+        .apply_logs();
 
     let mut dst = File::create(cli.dst_hive)?;
     std::io::copy(&mut hive, &mut dst)?;

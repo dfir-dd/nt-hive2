@@ -99,7 +99,7 @@ fn main() -> Result<()> {
     let cli = Args::parse();
     let _ = SimpleLogger::init(cli.verbose.log_level_filter(), Config::default());
 
-    fn do_print_key<RS>(hive: &mut Hive<RS>, root_key: &KeyNode, cli: &Args) -> Result<()> where RS: Read + Seek {
+    fn do_print_key<RS>(hive: &mut Hive<RS, CleanHive>, root_key: &KeyNode, cli: &Args) -> Result<()> where RS: Read + Seek {
         let mut path = Vec::new();
         print_key(hive, root_key, &mut path, cli)
     }
@@ -108,14 +108,18 @@ fn main() -> Result<()> {
 
     match File::open(&cli.hive_file) {
         Ok(data) => {
-            let mut hive = Hive::new(data, cli.parse_mode()).unwrap();
+            let hive = Hive::new(data, cli.parse_mode()).unwrap();
 
+            let mut clean_hive = 
             if let Some(logfileset) = cli.logfileset()? {
-                hive = logfileset.recover(hive)?;
-            }
+                logfileset.recover(hive)?
+            } else {
+                log::warn!("no log files provided, treating hive as if it was clean");
+                hive.treat_hive_as_clean()
+            };
 
-            let root_key = &hive.root_key_node().unwrap();
-            do_print_key(&mut hive, root_key, &cli).unwrap();
+            let root_key = &clean_hive.root_key_node().unwrap();
+            do_print_key(&mut clean_hive, root_key, &cli).unwrap();
         }
         Err(why) => {
             eprintln!("unable to open '{}': {}", cli.hive_file.to_string_lossy(), why);
@@ -125,7 +129,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn print_key<RS>(hive: &mut Hive<RS>, keynode: &KeyNode, path: &mut Vec<String>, cli: &Args) -> Result<()> where RS: Read + Seek {
+fn print_key<RS>(hive: &mut Hive<RS, CleanHive>, keynode: &KeyNode, path: &mut Vec<String>, cli: &Args) -> Result<()> where RS: Read + Seek {
     path.push(keynode.name().to_string());
 
     let current_path = path.join("\\");

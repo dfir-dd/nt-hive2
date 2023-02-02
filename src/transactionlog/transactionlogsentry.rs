@@ -155,7 +155,7 @@ fn read_dirty_pages<R: Read + Seek>(
 fn calc_hash1(
     dirty_pages_references: &Vec<DirtyPagesReference>,
     dirty_pages: &Vec<DirtyPage>,
-    slack: &[u8]
+    slack: &[u8],
 ) -> u32 {
     let mut hasher = Marvin32::new(0x82EF4D887A4E55C5);
     for reference in dirty_pages_references {
@@ -166,8 +166,7 @@ fn calc_hash1(
         hasher.write(page.as_ref());
     }
     hasher.write(slack);
-    let res = hasher.finish().try_into().unwrap();
-    res
+    hasher.finish().try_into().unwrap()
 }
 fn calc_hash2(header_fields: Vec<u32>) -> u32 {
     let mut hasher = Marvin32::new(0x82EF4D887A4E55C5);

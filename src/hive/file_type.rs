@@ -1,7 +1,10 @@
 use binread::BinRead;
+use binwrite::BinWrite;
+use byteorder::{WriteBytesExt, LittleEndian};
+use num_traits::ToPrimitive;
 
 /// <https://github.com/libyal/libregf/blob/main/documentation/Windows%20NT%20Registry%20File%20(REGF)%20format.asciidoc>
-#[derive(BinRead, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(BinRead, PartialEq, Eq, Debug, Clone, Copy, num_derive::ToPrimitive)]
 #[br(repr=u32)]
 pub enum FileType {
     /// Registry hive file
@@ -20,5 +23,12 @@ pub enum FileType {
 impl Default for FileType {
     fn default() -> Self {
         Self::HiveFile
+    }
+}
+
+impl BinWrite for FileType {
+    fn write_options<W: std::io::Write>(&self, writer: &mut W, _options: &binwrite::WriterOption) -> std::io::Result<()> {
+        writer.write_u32::<LittleEndian>(self.to_u32().unwrap())?;
+        Ok(())
     }
 }

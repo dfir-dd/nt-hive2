@@ -7,6 +7,7 @@ use std::rc::Rc;
 
 use crate::Cell;
 use crate::Hive;
+use crate::hive::CleanHive;
 use crate::subkeys_list::*;
 use crate::Offset;
 use crate::vk::KeyValueList;
@@ -153,7 +154,7 @@ impl KeyNode
     /// Returns a list of subkeys.
     /// 
     /// This function caches the subkeys, so the first call to this function might be slower.
-    pub fn subkeys<B>(&self, hive: &mut Hive<B>) -> BinResult<Ref<Vec<Rc<RefCell<Self>>>>> where B: BinReaderExt {
+    pub fn subkeys<B>(&self, hive: &mut Hive<B, CleanHive>) -> BinResult<Ref<Vec<Rc<RefCell<Self>>>>> where B: BinReaderExt {
         if self.subkeys.borrow().is_empty() && self.subkey_count() > 0 {
             let sk = self.read_subkeys(hive)?;
             *self.subkeys.borrow_mut() = sk;
@@ -161,7 +162,7 @@ impl KeyNode
         Ok(self.subkeys.borrow())
     }
 
-    fn read_subkeys<B>(&self, hive: &mut Hive<B>) -> BinResult<Vec<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn read_subkeys<B>(&self, hive: &mut Hive<B, CleanHive>) -> BinResult<Vec<Rc<RefCell<Self>>>> where B: BinReaderExt {
         let offset = self.subkeys_list_offset;
 
         if offset.0 == u32::MAX{
@@ -207,7 +208,7 @@ impl KeyNode
     }
     
 
-    fn subpath_parts<B>(&self, mut path_parts: Vec<&str>, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath_parts<B>(&self, mut path_parts: Vec<&str>, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
         if let Some(first) = path_parts.pop() {
             if let Some(top) = self.subkey(first, hive)? {
                 return if path_parts.is_empty() {
@@ -228,7 +229,7 @@ impl KeyNode
     /// > but any other printable character can be used. Value names and data can include the backslash character.
     /// 
     /// (<https://learn.microsoft.com/en-us/windows/win32/sysinfo/structure-of-the-registry>)
-    pub fn subkey<B>(&self, name: &str, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    pub fn subkey<B>(&self, name: &str, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
         let lowercase_name = name.to_lowercase();
         let subkey = self.subkeys(hive)?
             .iter()
@@ -244,32 +245,32 @@ impl KeyNode
 }
 
 pub trait SubPath<T> {
-    fn subpath<B>(&self, path: T, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt;
+    fn subpath<B>(&self, path: T, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt;
 }
 
 impl SubPath<&str> for KeyNode {
-    fn subpath<B>(&self, path: &str, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath<B>(&self, path: &str, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
         let path_parts: Vec<_> = path.split('\\').rev().collect();
         self.subpath_parts(path_parts, hive)
     }
 }
 
 impl SubPath<&String> for KeyNode {
-    fn subpath<B>(&self, path: &String, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath<B>(&self, path: &String, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
         let path_parts: Vec<_> = path.split('\\').rev().collect();
         self.subpath_parts(path_parts, hive)
     }
 }
 
 impl SubPath<&Vec<&str>> for KeyNode {
-    fn subpath<B>(&self, path: &Vec<&str>, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath<B>(&self, path: &Vec<&str>, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
         let path_parts: Vec<_> = path.iter().rev().copied().collect();
         self.subpath_parts(path_parts, hive)
     }
 }
 
 impl SubPath<&Vec<String>> for KeyNode {
-    fn subpath<B>(&self, path: &Vec<String>, hive: &mut Hive<B>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath<B>(&self, path: &Vec<String>, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
         let path_parts: Vec<_> = path.iter().rev().map(|s| &s[..]).collect();
         self.subpath_parts(path_parts, hive)
     }

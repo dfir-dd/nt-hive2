@@ -7,7 +7,7 @@ pub (crate) struct HiveBaseBlockRaw {
     #[br(count = 127)]
     raw_data: Vec<u32>,
 
-    #[br(assert(checksum_of(&raw_data[..]) == checksum))]
+    #[br(assert(checksum_of(&raw_data[..]) == checksum, "expected checksum of 0x{:08x}, but found 0x{checksum:08x} instead", checksum_of(&raw_data[..])))]
     checksum: u32,
 
     #[br(count = 0x37E)]
