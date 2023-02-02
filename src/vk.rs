@@ -24,8 +24,10 @@ pub struct KeyValueList {
     pub key_value_offsets: Vec<Offset>,
 }
 
-impl From<Cell<KeyValueList, (usize, )>> for KeyValueList {
-    fn from(cell: Cell<KeyValueList, (usize, )>) -> Self {
+pub type KeyValueCell = Cell<KeyValueList, (usize,)>;
+
+impl From<KeyValueCell> for KeyValueList {
+    fn from(cell: KeyValueCell) -> Self {
         cell.into_data()
     }
 }

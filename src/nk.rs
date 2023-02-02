@@ -10,6 +10,7 @@ use crate::Hive;
 use crate::hive::CleanHive;
 use crate::subkeys_list::*;
 use crate::Offset;
+use crate::vk::KeyValueCell;
 use crate::vk::KeyValueList;
 use crate::vk::KeyValue;
 use crate::vk::KeyValueWithMagic;
@@ -276,11 +277,10 @@ impl SubPath<&Vec<String>> for KeyNode {
     }
 }
 
-
 fn read_values<R: Read + Seek>(
     reader: &mut R,
     _ro: &ReadOptions,
-    args: (Option<&FilePtr32<Cell<KeyValueList, (usize,)>>>, ),
+    args: (Option<&FilePtr32<KeyValueCell>>, ),
 ) -> BinResult<Vec<KeyValue>> {
     Ok(match args.0 {
         None => Vec::new(),
