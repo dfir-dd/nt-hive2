@@ -94,7 +94,7 @@ where
     }
 }
 
-impl<B, C> HiveWithLogs<B, HiveWithLogs<B, C>>
+impl<B, C> HiveWithLogs<B, C>
 where
     B: BinReaderExt,
     C: ContainsHive<B>,

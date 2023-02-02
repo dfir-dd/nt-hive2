@@ -7,9 +7,6 @@ use std::path::PathBuf;
 use anyhow::{Result, bail};
 use clap::Parser;
 
-mod logfileset;
-use logfileset::LogfileSet;
-
 #[derive(Parser)]
 #[clap(name="regdump", author, version, about, long_about = None)]
 struct Args {
@@ -17,15 +14,10 @@ struct Args {
     #[arg(value_parser = validate_file)]
     pub (crate) hive_file: PathBuf,
 
-    /// LOG1 file (name of the original hive file, together with the extension LOG1)
-    #[clap(long("log1"), group("logfiles"))]
+    /// transaction LOG file(s) 
+    #[clap(short('L'), long("log"))]
     #[arg(value_parser = validate_file)]
-    log1file: Option<PathBuf>,
-
-    /// LOG2 file (name of the original hive file, together with the extension LOG1)
-    #[clap(long("log2"), group("logfiles"))]
-    #[arg(value_parser = validate_file)]
-    log2file: Option<PathBuf>,
+    logfiles: Vec<PathBuf>,
 
     /// print as bodyfile format
     #[clap(short('b'),long("bodyfile"))]
@@ -64,26 +56,6 @@ impl Args {
             HiveParseMode::NormalWithBaseBlock
         }
     }
-
-    pub fn logfileset(&self) -> Result<Option<LogfileSet>> {
-        match &self.log1file {
-            Some(log1file) => match &self.log2file {
-                Some(log2file) => {
-                    Ok(Some(LogfileSet::new(log1file, log2file)?))
-                }
-                None => {
-                    bail!("missing LOG2 file");
-                }
-            }
-            None => match &self.log2file {
-                Some(_) => {
-                    bail!("missing LOG1 file");
-                }
-                None => Ok(None)
-            }
-        }
-    }
-
 }
 
 fn validate_file(s: &str) -> Result<PathBuf, String> {
@@ -96,7 +68,7 @@ fn validate_file(s: &str) -> Result<PathBuf, String> {
 }
 
 fn main() -> Result<()> {
-    let cli = Args::parse();
+    let mut cli = Args::parse();
     let _ = SimpleLogger::init(cli.verbose.log_level_filter(), Config::default());
 
     fn do_print_key<RS>(hive: &mut Hive<RS, CleanHive>, root_key: &KeyNode, cli: &Args) -> Result<()> where RS: Read + Seek {
@@ -104,18 +76,28 @@ fn main() -> Result<()> {
         print_key(hive, root_key, &mut path, cli)
     }
 
-
-
     match File::open(&cli.hive_file) {
         Ok(data) => {
             let hive = Hive::new(data, cli.parse_mode()).unwrap();
 
             let mut clean_hive = 
-            if let Some(logfileset) = cli.logfileset()? {
-                logfileset.recover(hive)?
-            } else {
-                log::warn!("no log files provided, treating hive as if it was clean");
-                hive.treat_hive_as_clean()
+            match cli.logfiles.len() {
+                0 => {
+                    log::warn!("no log files provided, treating hive as if it was clean");
+                    hive.treat_hive_as_clean()
+                }
+                1 => {
+                    hive.with_transaction_log(File::open(cli.logfiles.pop().unwrap())?.try_into()?)?
+                    .apply_logs()
+                }
+                2 => {
+                    hive.with_transaction_log(File::open(cli.logfiles.pop().unwrap())?.try_into()?)?
+                    .with_transaction_log(File::open(cli.logfiles.pop().unwrap())?.try_into()?)?
+                    .apply_logs()
+                }
+                _ => {
+                    bail!("more than two transaction log files are not supported")
+                }
             };
 
             let root_key = &clean_hive.root_key_node().unwrap();
