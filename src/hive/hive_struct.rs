@@ -167,11 +167,11 @@ where
             log::info!(
                 "placing patch of size {} at 0x{:08x}",
                 page.len(),
-                base_block.root_cell_offset().0 + reference.offset().0
+                BASEBLOCK_SIZE as u32 + reference.offset().0
             );
 
             if let Err(why) = self.data.add_bytes_at(
-                (base_block.root_cell_offset().0 + reference.offset().0).into(),
+                (BASEBLOCK_SIZE as u32 + reference.offset().0).into(),
                 page,
             ) {
                 panic!("unable to apply memory patch: {why}");
