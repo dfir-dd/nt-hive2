@@ -2,7 +2,7 @@
 name = "nt_hive2"
 version = "3.0.0"
 edition = "2021"
-authors = ["Jan Starke <jan.starke@posteo.de>"]
+authors = ["Jan Starke <jan.starke@posteo.de>", "Muteb Alqahtani <muteb@securitycolumns.com>"]
 license = "GPL-3.0"
 description = "forensic parser library for Windows registry hive files"
 repository = "https://github.com/janstarke/nt-hive2"
