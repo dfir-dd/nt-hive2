@@ -14,7 +14,7 @@ struct Args {
     #[arg(value_parser = validate_file)]
     pub (crate) hive_file: PathBuf,
 
-    /// transaction LOG file(s) 
+    /// transaction LOG file(s). This argument can be specified one or two times.
     #[clap(short('L'), long("log"))]
     #[arg(value_parser = validate_file)]
     logfiles: Vec<PathBuf>,

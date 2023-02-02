@@ -1,7 +1,7 @@
 use bodyfile::Bodyfile3Line;
 use nt_hive2::*;
 use crate::regtreeentry::RegTreeEntry;
-use std::{fs::File};
+use std::{fs::File, path::PathBuf};
 use anyhow::Result;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -15,12 +15,26 @@ pub (crate) struct Args {
     /// name of the file to scan
     pub (crate) hive_file: String,
 
+    /// transaction LOG file(s). This argument can be specified one or two times.
+    #[clap(short('L'), long("log"))]
+    #[arg(value_parser = validate_file)]
+    pub (crate) logfiles: Vec<PathBuf>,
+
     #[clap(flatten)]
     pub (crate) verbose: clap_verbosity_flag::Verbosity,
 
     /// output as bodyfile format
     #[clap(short('b'))]
     pub (crate) print_bodyfile: bool
+}
+
+fn validate_file(s: &str) -> Result<PathBuf, String> {
+    let pb = PathBuf::from(s);
+    if pb.is_file() && pb.exists() {
+        Ok(pb)
+    } else {
+        Err(format!("unable to read file: '{s}'"))
+    }
 }
 
 pub (crate) struct HiveScanApplication{
