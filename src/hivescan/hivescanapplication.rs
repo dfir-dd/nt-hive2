@@ -1,7 +1,7 @@
 use bodyfile::Bodyfile3Line;
 use nt_hive2::*;
 use crate::regtreeentry::RegTreeEntry;
-use std::{fs::File};
+use std::{fs::File, path::PathBuf};
 use anyhow::Result;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -15,6 +15,11 @@ pub (crate) struct Args {
     /// name of the file to scan
     pub (crate) hive_file: String,
 
+    /// transaction LOG file(s). This argument can be specified one or two times.
+    #[clap(short('L'), long("log"))]
+    #[arg(value_parser = validate_file)]
+    pub (crate) logfiles: Vec<PathBuf>,
+
     #[clap(flatten)]
     pub (crate) verbose: clap_verbosity_flag::Verbosity,
 
@@ -23,21 +28,28 @@ pub (crate) struct Args {
     pub (crate) print_bodyfile: bool
 }
 
+fn validate_file(s: &str) -> Result<PathBuf, String> {
+    let pb = PathBuf::from(s);
+    if pb.is_file() && pb.exists() {
+        Ok(pb)
+    } else {
+        Err(format!("unable to read file: '{s}'"))
+    }
+}
+
 pub (crate) struct HiveScanApplication{
 
     #[allow(dead_code)]
     cli: Args,
 
-    data_offset: u32,
     root_offset: Offset,
-    hive: Option<Hive<File>>
+    hive: Option<Hive<File, CleanHive>>
 }
 
 impl HiveScanApplication {
-    pub fn new(cli: Args, hive: Hive<File>) -> Self {
+    pub fn new(cli: Args, hive: Hive<File, CleanHive>) -> Self {
         Self {
             cli,
-            data_offset: *hive.data_offset(),
             root_offset: hive.root_cell_offset(),
             hive: Some(hive) 
         }
@@ -90,7 +102,7 @@ impl HiveScanApplication {
             println!("[{}]; last change at {}, found at offset 0x{:x}", 
                 path,
                 entry.nk().timestamp().to_rfc3339(),
-                entry.offset().0 + self.data_offset);
+                entry.offset().0 + BASEBLOCK_SIZE as u32);
             self.print_values_of(entry);
             println!();
         }

@@ -1,7 +1,3 @@
 /target
 Cargo.lock
 **/SYSTEM
-
-*.txt
-
-/dev

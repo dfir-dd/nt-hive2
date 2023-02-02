@@ -1,8 +1,8 @@
 [package]
 name = "nt_hive2"
-version = "2.3.3"
+version = "3.0.0"
 edition = "2021"
-author = "Jan Starke <jan.starke@posteo.de>"
+authors = ["Jan Starke <jan.starke@posteo.de>"]
 license = "GPL-3.0"
 description = "forensic parser library for Windows registry hive files"
 repository = "https://github.com/janstarke/nt-hive2"
@@ -11,9 +11,10 @@ repository = "https://github.com/janstarke/nt-hive2"
 
 [features]
 default = ["cli"]
-cli = ["regdump", "hivescan"]
+cli = ["regdump", "hivescan", "cleanhive"]
 regdump = ["simplelog", "std", "clap", "clap-verbosity-flag", "bodyfile"]
 hivescan = ["simplelog", "std", "clap", "clap-verbosity-flag", "indicatif"]
+cleanhive = ["simplelog", "std", "clap", "clap-verbosity-flag"]
 std = []
 
 [[bin]]
@@ -27,12 +28,18 @@ name = "hivescan"
 path = "src/hivescan/main.rs"
 required-features = ["hivescan", "bodyfile"]
 
+[[bin]]
+name = "cleanhive"
+path = "src/cleanhive.rs"
+required-features = ["cleanhive"]
+
 [lib]
 name = "nt_hive2"
 path = "src/lib.rs"
 
 [dependencies]
 binread = "2.2"
+binwrite = "0.2"
 displaydoc = "0.2"
 bitflags = "1.3"
 encoding_rs = "0.8"
@@ -43,7 +50,16 @@ winstructs = "0.3.0"
 anyhow = "1.0"
 thiserror = "1.0"
 
-clap = {version="3", optional=true}
-clap-verbosity-flag = {version="1.0.0", optional=true}
+marvin32 = {version = "0", path = "marvin32" }
+
+clap = {version="4", optional=true, features=["wrap_help"]}
+clap-verbosity-flag = {version="2.0.0", optional=true}
 indicatif = {version="0.16", optional=true}
 bodyfile = {version="0.1.4", optional=true}
+serde = "1.0.147"
+serde_derive = "1.0.147"
+derive-getters = "0.2"
+memoverlay = ">=0.1.2"
+num-traits = "0.2"
+num-derive = "0.3"
+byteorder = "1.4"

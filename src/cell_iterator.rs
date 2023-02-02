@@ -4,6 +4,7 @@ use binread::{BinReaderExt, BinRead, derive_binread, BinResult};
 use thiserror::Error;
 
 use crate::*;
+use crate::hive::CleanHive;
 use crate::hivebin::HiveBin;
 use crate::subkeys_list::*;
 
@@ -20,7 +21,7 @@ impl Default for CellFilter {
 }
 
 pub struct CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) {
-    hive: Hive<B>,
+    hive: Hive<B, CleanHive>,
     hivebin: Option<HiveBin>,
     read_from_hivebin: usize,
     callback: C,
@@ -28,7 +29,7 @@ pub struct CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) {
 }
 
 impl<B, C> CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) {
-    pub fn new(mut hive: Hive<B>, callback: C) -> Self {
+    pub fn new(mut hive: Hive<B, CleanHive>, callback: C) -> Self {
         hive.seek(SeekFrom::Start(0)).unwrap();
         Self {
             hive,
@@ -49,6 +50,7 @@ impl<B, C> CellIterator<B, C> where B: BinReaderExt, C: Fn(u64) {
             Err(why) => {
                 if let binread::Error::Io(kind) = &why {
                     if kind.kind() == ErrorKind::UnexpectedEof {
+                        log::warn!("unexpected EOF while trying to read hivebin header");
                         return Err(why);
                     }
                 }

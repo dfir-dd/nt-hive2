@@ -1,7 +1,7 @@
 use std::{rc::Rc, cell::RefCell, collections::{HashMap, hash_map}};
 
 use binread::{BinReaderExt};
-use nt_hive2::{Offset, Hive, KeyNode};
+use nt_hive2::{Offset, Hive, KeyNode, CleanHive};
 
 use crate::regtreeentry::*;
 
@@ -17,8 +17,8 @@ pub (crate) struct RegTreeBuilder {
     missing_parents: HashMap<Offset, Vec<Rc<RefCell<RegTreeEntry>>>>
 }
 
-impl<B> From<Hive<B>> for RegTreeBuilder where B: BinReaderExt {
-    fn from(hive: Hive<B>) -> Self {
+impl<B> From<Hive<B, CleanHive>> for RegTreeBuilder where B: BinReaderExt {
+    fn from(hive: Hive<B, CleanHive>) -> Self {
         Self::from_hive(hive, |_| ())
     }
 }
@@ -38,7 +38,7 @@ impl<'a> Iterator for RootNodes<'a> {
 
 impl RegTreeBuilder {
 
-    pub fn from_hive<B, C>(hive: Hive<B>, progress_callback: C) -> Self where B: BinReaderExt, C: Fn(u64) {
+    pub fn from_hive<B, C>(hive: Hive<B, CleanHive>, progress_callback: C) -> Self where B: BinReaderExt, C: Fn(u64) {
         let iterator = hive.into_cell_iterator(progress_callback);
         let mut me = Self {
             subtrees: HashMap::new(),

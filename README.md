@@ -10,22 +10,22 @@ differences:
 # `regdump`
 
 ```
-regdump 2.1.0
 forensic parser library for Windows registry hive files
 
-USAGE:
-    regdump [OPTIONS] <HIVE_FILE>
+Usage: regdump [OPTIONS] <HIVE_FILE>
 
-ARGS:
-    <HIVE_FILE>    name of the file to dump
+Arguments:
+  <HIVE_FILE>  name of the file to dump
 
-OPTIONS:
-    -b, --bodyfile             print as bodyfile format
-    -h, --help                 Print help information
-    -I, --ignore-base-block    ignore the base block (e.g. if it was encrypted by some ransomware)
-    -q, --quiet                Less output per occurrence
-    -v, --verbose              More output per occurrence
-    -V, --version              Print version information
+Options:
+  -L, --log <LOGFILES>     transaction LOG file(s). This argument can be specified one or two times
+  -b, --bodyfile           print as bodyfile format
+  -I, --ignore-base-block  ignore the base block (e.g. if it was encrypted by some ransomware)
+  -v, --verbose...         More output per occurrence
+  -q, --quiet...           Less output per occurrence
+  -h, --help               Print help information
+  -V, --version            Print version information
+
 ```
 
 # `hivescan`
@@ -33,21 +33,40 @@ OPTIONS:
 ```
 scans a registry hive file for deleted entries
 
-USAGE:
-    hivescan [OPTIONS] <HIVE_FILE>
+Usage: hivescan [OPTIONS] <HIVE_FILE>
 
-ARGS:
-    <HIVE_FILE>    name of the file to scan
+Arguments:
+  <HIVE_FILE>  name of the file to scan
 
-OPTIONS:
-    -b               output as bodyfile format
-    -h, --help       Print help information
-    -q, --quiet      Less output per occurrence
-    -v, --verbose    More output per occurrence
-    -V, --version    Print version information
+Options:
+  -L, --log <LOGFILES>  transaction LOG file(s). This argument can be specified one or two times
+  -v, --verbose...      More output per occurrence
+  -q, --quiet...        Less output per occurrence
+  -b                    output as bodyfile format
+  -h, --help            Print help information
+  -V, --version         Print version information
 ```
 
-## Usage example
+# `cleanhive`
+
+```
+merges logfiles into a hive file
+
+Usage: cleanhive [OPTIONS] --output <DST_HIVE> <HIVE_FILE>
+
+Arguments:
+  <HIVE_FILE>  name of the file to dump
+
+Options:
+  -L, --log <LOGFILES>     transaction LOG file(s). This argument can be specified one or two times
+  -v, --verbose...         More output per occurrence
+  -q, --quiet...           Less output per occurrence
+  -O, --output <DST_HIVE>  name of the file to which the cleaned hive will be written
+  -h, --help               Print help information
+  -V, --version            Print version information
+```
+
+## Usage example for developers
 
 ```rust
 use std::fs::File;
