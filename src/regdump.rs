@@ -27,6 +27,10 @@ struct Args {
     #[clap(short('I'), long)]
     ignore_base_block: bool,
 
+    /// hide timestamps, if output is in reg format
+    #[clap(short('T'), long)]
+    hide_timestamps: bool,
+
     #[clap(flatten)]
     pub (crate) verbose: clap_verbosity_flag::Verbosity,
 }
@@ -121,7 +125,11 @@ fn print_key<RS>(hive: &mut Hive<RS, CleanHive>, keynode: &KeyNode, path: &mut V
             .with_ctime(keynode.timestamp().timestamp());
         println!("{}", bf_line);
     } else {
-        println!("\n[{}]; {}", &current_path, keynode.timestamp());
+        if cli.hide_timestamps {
+            println!("\n[{}]", &current_path);
+        } else {
+            println!("\n[{}]; {}", &current_path, keynode.timestamp());
+        }
 
         print_values(keynode);
     }

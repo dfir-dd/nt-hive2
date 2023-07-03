@@ -1,6 +1,6 @@
 [package]
 name = "nt_hive2"
-version = "3.0.1"
+version = "3.1.0"
 edition = "2021"
 authors = ["Jan Starke <jan.starke@posteo.de>", "Muteb Alqahtani <muteb@securitycolumns.com>"]
 license = "GPL-3.0"
@@ -63,3 +63,5 @@ memoverlay = ">=0.1.2"
 num-traits = "0.2"
 num-derive = "0.3"
 byteorder = "1.4"
+
+backtrace-on-stack-overflow = "0.3.0"
