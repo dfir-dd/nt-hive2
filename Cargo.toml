@@ -58,10 +58,10 @@ indicatif = {version="0.16", optional=true}
 bodyfile = {version="0.1.4", optional=true}
 serde = "1.0.147"
 serde_derive = "1.0.147"
-derive-getters = "0.2"
+derive-getters = "0.3"
 memoverlay = ">=0.1.2"
 num-traits = "0.2"
-num-derive = "0.3"
+num-derive = "0.4"
 byteorder = "1.4"
 
 backtrace-on-stack-overflow = "0.3.0"
