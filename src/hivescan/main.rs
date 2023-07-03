@@ -11,6 +11,9 @@ use hivescanapplication::*;
 
 
 fn main() -> Result<()> {
+
+    unsafe { backtrace_on_stack_overflow::enable() };
+    
     let mut cli = Args::parse();
     let _ = SimpleLogger::init(cli.verbose.log_level_filter(), Config::default());
 
