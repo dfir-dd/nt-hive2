@@ -273,18 +273,18 @@ impl Display for RegistryValue {
         match self {
             RegistryValue::RegUnknown => write!(f, "Unknown"),
             RegistryValue::RegNone => write!(f, "None"),
-            RegistryValue::RegSZ(val) => write!(f, "\"{}\"", val),
-            RegistryValue::RegExpandSZ(val) => write!(f, "\"{}\"", val),
+            RegistryValue::RegSZ(val) => write!(f, "{val:?}"),
+            RegistryValue::RegExpandSZ(val) => write!(f, "{val:?}"),
             RegistryValue::RegBinary(val) => {
                 write!(f, "{:?}", if val.len() > 16 { &val[..16] } else { val })
             }
             RegistryValue::RegDWord(val) => write!(f, "0x{:08x}", val),
             RegistryValue::RegDWordBigEndian(val) => write!(f, "0x{:08x}", val),
-            RegistryValue::RegLink(val) => write!(f, "\"{}\"", val),
+            RegistryValue::RegLink(val) => write!(f, "{val:?}"),
             RegistryValue::RegMultiSZ(val) => write!(f, "{:?}", val),
-            RegistryValue::RegResourceList(val) => write!(f, "\"{}\"", val),
-            RegistryValue::RegFullResourceDescriptor(val) => write!(f, "\"{}\"", val),
-            RegistryValue::RegResourceRequirementsList(val) => write!(f, "\"{}\"", val),
+            RegistryValue::RegResourceList(val) => write!(f, "{val:?}"),
+            RegistryValue::RegFullResourceDescriptor(val) => write!(f, "{val:?}"),
+            RegistryValue::RegResourceRequirementsList(val) => write!(f, "{val:?}"),
             RegistryValue::RegQWord(val) => write!(f, "0x{:016x}", val),
             RegistryValue::RegFileTime => todo!(),
         }

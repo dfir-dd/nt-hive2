@@ -1,6 +1,6 @@
 [package]
 name = "nt_hive2"
-version = "3.1.0"
+version = "3.1.1"
 edition = "2021"
 authors = ["Jan Starke <jan.starke@posteo.de>", "Muteb Alqahtani <muteb@securitycolumns.com>"]
 license = "GPL-3.0"
