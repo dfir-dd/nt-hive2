@@ -1,5 +1,13 @@
 # nt_hive2
 
+
+> **Warning**
+> This Repository has been moved to <https://github.com/janstarke/dfir-toolkit>
+>
+> You can install the tools by running `cargo install dfir-toolkit`
+> 
+
+
 This crates aims to be a replacement of <https://github.com/ColinFinck/nt-hive>, with the following
 differences:
 
