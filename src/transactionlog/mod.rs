@@ -71,6 +71,14 @@ impl TryFrom<File> for TransactionLog {
     }
 }
 
+impl TryFrom<&mut File> for TransactionLog {
+    type Error = binread::Error;
+
+    fn try_from(file: &mut File) -> Result<Self, Self::Error> {
+        file.read_le::<TransactionLog>()
+    }
+}
+
 impl IntoIterator for TransactionLog {
     type Item = TransactionLogsEntry;
 
