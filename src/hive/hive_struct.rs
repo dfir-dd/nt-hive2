@@ -243,9 +243,18 @@ where
         );
 
         self.seek(SeekFrom::Start(offset.0.into()))?;
-        let cell: Cell<T, ()> = self.read_le().unwrap();
-        assert!(cell.is_allocated());
-        Ok(cell.into())
+
+        match self.read_le::<Cell<T, ()>>() {
+            Ok(cell) => {
+                assert!(cell.is_allocated());
+                Ok(cell.into())
+            },
+            Err(why) => {
+                log::error!("Error while reading from offset {:08x}: {why}",
+                offset.0 + BASEBLOCK_SIZE as u32);
+                BinResult::Err(why)
+            },
+        }
     }
 
     /// returns the start of the hive bins data
