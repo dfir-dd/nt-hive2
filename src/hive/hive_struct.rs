@@ -170,10 +170,10 @@ where
                 BASEBLOCK_SIZE as u32 + reference.offset().0
             );
 
-            if let Err(why) = self.data.add_bytes_at(
-                (BASEBLOCK_SIZE as u32 + reference.offset().0).into(),
-                page,
-            ) {
+            if let Err(why) = self
+                .data
+                .add_bytes_at((BASEBLOCK_SIZE as u32 + reference.offset().0).into(), page)
+            {
                 panic!("unable to apply memory patch: {why}");
             }
         }
@@ -248,12 +248,17 @@ where
             Ok(cell) => {
                 assert!(cell.is_allocated());
                 Ok(cell.into())
-            },
+            }
             Err(why) => {
-                log::error!("Error while reading from offset {:08x}: {why}",
-                offset.0 + BASEBLOCK_SIZE as u32);
+                log::error!(
+                    "Error while reading from offset {offset:08x}: {why}",
+                    offset = offset.0 + BASEBLOCK_SIZE as u32
+                );
+                if let Some(custom) = why.custom_err::<anyhow::Error>() {
+                    log::error!("custom error was {custom}");
+                }
                 BinResult::Err(why)
-            },
+            }
         }
     }
 
