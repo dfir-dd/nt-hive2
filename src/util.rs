@@ -19,7 +19,9 @@ pub fn parse_string<R: Read + Seek>(
     };
 
     if had_errors {
-        //println!("unable to decode bytes {raw_string:?} into string");
+        log::error!("error while decoding bytes {raw_string:?} into string");
+        Ok(cow.to_string())
+        /*
         Err(binread::error::Error::Custom {
             pos: ro.offset,
             err: Box::new(format!(
@@ -27,6 +29,7 @@ pub fn parse_string<R: Read + Seek>(
                 ro.offset
             )),
         })
+        */
     } else {
         Ok(cow.to_string())
     }
