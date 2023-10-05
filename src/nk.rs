@@ -5,26 +5,25 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::rc::Rc;
 
-use crate::Cell;
-use crate::Hive;
 use crate::hive::CleanHive;
 use crate::subkeys_list::*;
-use crate::Offset;
+use crate::util::{parse_string, parse_timestamp};
+use crate::vk::KeyValue;
 use crate::vk::KeyValueCell;
 use crate::vk::KeyValueList;
-use crate::vk::KeyValue;
 use crate::vk::KeyValueWithMagic;
+use crate::Cell;
+use crate::Hive;
+use crate::Offset;
+use binread::derive_binread;
 use binread::BinRead;
+use binread::BinReaderExt;
 use binread::BinResult;
 use binread::FilePtr32;
 use binread::ReadOptions;
-use binread::derive_binread;
-use binread::{BinReaderExt};
 use bitflags::bitflags;
 use chrono::DateTime;
 use chrono::Utc;
-use crate::util::{parse_string, parse_timestamp};
-
 
 #[derive(BinRead)]
 #[br(magic = b"nk")]
@@ -35,8 +34,8 @@ pub struct KeyNodeWithMagic(KeyNode);
 #[derive_binread]
 pub struct KeyNode {
     #[br(parse_with=parse_node_flags)]
-    pub (crate) flags: KeyNodeFlags,
-    
+    pub(crate) flags: KeyNodeFlags,
+
     #[br(parse_with=parse_timestamp)]
     timestamp: DateTime<Utc>,
     access_bits: u32,
@@ -64,7 +63,7 @@ pub struct KeyNode {
 
     #[br(temp)]
     key_security_offset: Offset,
-    
+
     #[br(temp)]
     class_name_offset: Offset,
 
@@ -100,18 +99,20 @@ pub struct KeyNode {
     values: Vec<KeyValue>,
 
     #[br(default)]
-    subkeys: Rc<RefCell<Vec<Rc<RefCell<Self>>>>>
+    subkeys: Rc<RefCell<Vec<Rc<RefCell<Self>>>>>,
 }
 
-fn parse_node_flags<R: Read + Seek>(reader: &mut R, _ro: &ReadOptions, _: ())
--> BinResult<KeyNodeFlags>
-{
+fn parse_node_flags<R: Read + Seek>(
+    reader: &mut R,
+    _ro: &ReadOptions,
+    _: (),
+) -> BinResult<KeyNodeFlags> {
     let raw_value: u16 = reader.read_le()?;
     Ok(KeyNodeFlags::from_bits(raw_value).unwrap())
 }
 
 bitflags! {
-    pub(crate) struct KeyNodeFlags: u16 {
+    pub struct KeyNodeFlags: u16 {
         /// This is a volatile key (not stored on disk).
         const KEY_IS_VOLATILE = 0x0001;
         /// This is the mount point of another hive (not stored on disk).
@@ -135,8 +136,7 @@ bitflags! {
     }
 }
 
-impl KeyNode
-{
+impl KeyNode {
     /// Returns the name of this Key Node.
     pub fn name(&self) -> &str {
         &self.key_name_string
@@ -153,9 +153,15 @@ impl KeyNode
     }
 
     /// Returns a list of subkeys.
-    /// 
+    ///
     /// This function caches the subkeys, so the first call to this function might be slower.
-    pub fn subkeys<B>(&self, hive: &mut Hive<B, CleanHive>) -> BinResult<Ref<Vec<Rc<RefCell<Self>>>>> where B: BinReaderExt {
+    pub fn subkeys<B>(
+        &self,
+        hive: &mut Hive<B, CleanHive>,
+    ) -> BinResult<Ref<Vec<Rc<RefCell<Self>>>>>
+    where
+        B: BinReaderExt,
+    {
         if self.subkeys.borrow().is_empty() && self.subkey_count() > 0 {
             let sk = self.read_subkeys(hive)?;
             *self.subkeys.borrow_mut() = sk;
@@ -163,53 +169,74 @@ impl KeyNode
         Ok(self.subkeys.borrow())
     }
 
-    fn read_subkeys<B>(&self, hive: &mut Hive<B, CleanHive>) -> BinResult<Vec<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn read_subkeys<B>(&self, hive: &mut Hive<B, CleanHive>) -> BinResult<Vec<Rc<RefCell<Self>>>>
+    where
+        B: BinReaderExt,
+    {
         let offset = self.subkeys_list_offset;
 
-        if offset.0 == u32::MAX{
+        if offset.0 == u32::MAX {
             return Ok(Vec::new());
         }
 
         let subkeys_list: SubKeysList = hive.read_structure(offset)?;
 
-        log::debug!("SubKeyList is of type '{}'", match subkeys_list {
-            SubKeysList::IndexLeaf { items: _, ..} => "IndexLeaf",
-            SubKeysList::FastLeaf { items: _, ..} => "FastLeaf",
-            SubKeysList::HashLeaf { items: _, ..} => "HashLeaf",
-            SubKeysList::IndexRoot { items: _, ..} => "IndexRoot",
-        });
+        log::debug!(
+            "SubKeyList is of type '{}'",
+            match subkeys_list {
+                SubKeysList::IndexLeaf { items: _, .. } => "IndexLeaf",
+                SubKeysList::FastLeaf { items: _, .. } => "FastLeaf",
+                SubKeysList::HashLeaf { items: _, .. } => "HashLeaf",
+                SubKeysList::IndexRoot { items: _, .. } => "IndexRoot",
+            }
+        );
 
         log::trace!("{:?}", subkeys_list);
 
         if subkeys_list.is_index_root() {
             log::debug!("reading indirect subkey lists");
-            let subkeys: BinResult<Vec<_>>= subkeys_list.into_offsets().map(|o| {
-                let subsubkeys_list: SubKeysList = hive.read_structure(o)?;
-                assert!(!subsubkeys_list.is_index_root());
+            let subkeys: BinResult<Vec<_>> = subkeys_list
+                .into_offsets()
+                .map(|o| {
+                    let subsubkeys_list: SubKeysList = hive.read_structure(o)?;
+                    assert!(!subsubkeys_list.is_index_root());
 
-                let subkeys: BinResult<Vec<_>> = subsubkeys_list.into_offsets().map(|o2| {
-                    let nk: KeyNodeWithMagic = hive.read_structure(o2)?;
-                    Ok(Rc::new(RefCell::new(nk.0)))
-                }).collect();
-                subkeys
-            }).collect();
+                    let subkeys: BinResult<Vec<_>> = subsubkeys_list
+                        .into_offsets()
+                        .map(|o2| {
+                            let nk: KeyNodeWithMagic = hive.read_structure(o2)?;
+                            Ok(Rc::new(RefCell::new(nk.0)))
+                        })
+                        .collect();
+                    subkeys
+                })
+                .collect();
 
             match subkeys {
                 Err(why) => Err(why),
-                Ok(sk) => Ok(sk.into_iter().flatten().collect())
+                Ok(sk) => Ok(sk.into_iter().flatten().collect()),
             }
         } else {
             log::debug!("reading single subkey list");
-            let subkeys: BinResult<Vec<_>> = subkeys_list.into_offsets().map(|offset| {
-                let nk: KeyNodeWithMagic = hive.read_structure(offset)?;
-                Ok(Rc::new(RefCell::new(nk.0)))
-            }).collect();
+            let subkeys: BinResult<Vec<_>> = subkeys_list
+                .into_offsets()
+                .map(|offset| {
+                    let nk: KeyNodeWithMagic = hive.read_structure(offset)?;
+                    Ok(Rc::new(RefCell::new(nk.0)))
+                })
+                .collect();
             subkeys
         }
     }
-    
 
-    fn subpath_parts<B>(&self, mut path_parts: Vec<&str>, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath_parts<B>(
+        &self,
+        mut path_parts: Vec<&str>,
+        hive: &mut Hive<B, CleanHive>,
+    ) -> BinResult<Option<Rc<RefCell<Self>>>>
+    where
+        B: BinReaderExt,
+    {
         if let Some(first) = path_parts.pop() {
             if let Some(top) = self.subkey(first, hive)? {
                 return if path_parts.is_empty() {
@@ -224,17 +251,25 @@ impl KeyNode
 
     /// returns the subkey with a given `name`, or [`None`] if there is no such subkey.
     /// The name is compared without case sensitivity, because
-    /// 
+    ///
     /// > Each key has a name consisting of one or more printable characters.
     /// > *Key names are not case sensitive.* Key names cannot include the backslash character (\),
     /// > but any other printable character can be used. Value names and data can include the backslash character.
-    /// 
+    ///
     /// (<https://learn.microsoft.com/en-us/windows/win32/sysinfo/structure-of-the-registry>)
-    pub fn subkey<B>(&self, name: &str, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    pub fn subkey<B>(
+        &self,
+        name: &str,
+        hive: &mut Hive<B, CleanHive>,
+    ) -> BinResult<Option<Rc<RefCell<Self>>>>
+    where
+        B: BinReaderExt,
+    {
         let lowercase_name = name.to_lowercase();
-        let subkey = self.subkeys(hive)?
+        let subkey = self
+            .subkeys(hive)?
             .iter()
-            .find(|s|s.borrow().name().to_lowercase() == lowercase_name)
+            .find(|s| s.borrow().name().to_lowercase() == lowercase_name)
             .map(Rc::clone);
         Ok(subkey)
     }
@@ -246,32 +281,66 @@ impl KeyNode
 }
 
 pub trait SubPath<T> {
-    fn subpath<B>(&self, path: T, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt;
+    fn subpath<B>(
+        &self,
+        path: T,
+        hive: &mut Hive<B, CleanHive>,
+    ) -> BinResult<Option<Rc<RefCell<Self>>>>
+    where
+        B: BinReaderExt;
 }
 
 impl SubPath<&str> for KeyNode {
-    fn subpath<B>(&self, path: &str, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath<B>(
+        &self,
+        path: &str,
+        hive: &mut Hive<B, CleanHive>,
+    ) -> BinResult<Option<Rc<RefCell<Self>>>>
+    where
+        B: BinReaderExt,
+    {
         let path_parts: Vec<_> = path.split('\\').rev().collect();
         self.subpath_parts(path_parts, hive)
     }
 }
 
 impl SubPath<&String> for KeyNode {
-    fn subpath<B>(&self, path: &String, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath<B>(
+        &self,
+        path: &String,
+        hive: &mut Hive<B, CleanHive>,
+    ) -> BinResult<Option<Rc<RefCell<Self>>>>
+    where
+        B: BinReaderExt,
+    {
         let path_parts: Vec<_> = path.split('\\').rev().collect();
         self.subpath_parts(path_parts, hive)
     }
 }
 
 impl SubPath<&Vec<&str>> for KeyNode {
-    fn subpath<B>(&self, path: &Vec<&str>, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath<B>(
+        &self,
+        path: &Vec<&str>,
+        hive: &mut Hive<B, CleanHive>,
+    ) -> BinResult<Option<Rc<RefCell<Self>>>>
+    where
+        B: BinReaderExt,
+    {
         let path_parts: Vec<_> = path.iter().rev().copied().collect();
         self.subpath_parts(path_parts, hive)
     }
 }
 
 impl SubPath<&Vec<String>> for KeyNode {
-    fn subpath<B>(&self, path: &Vec<String>, hive: &mut Hive<B, CleanHive>) -> BinResult<Option<Rc<RefCell<Self>>>> where B: BinReaderExt {
+    fn subpath<B>(
+        &self,
+        path: &Vec<String>,
+        hive: &mut Hive<B, CleanHive>,
+    ) -> BinResult<Option<Rc<RefCell<Self>>>>
+    where
+        B: BinReaderExt,
+    {
         let path_parts: Vec<_> = path.iter().rev().map(|s| &s[..]).collect();
         self.subpath_parts(path_parts, hive)
     }
@@ -280,7 +349,7 @@ impl SubPath<&Vec<String>> for KeyNode {
 fn read_values<R: Read + Seek>(
     reader: &mut R,
     _ro: &ReadOptions,
-    args: (Option<&FilePtr32<KeyValueCell>>, ),
+    args: (Option<&FilePtr32<KeyValueCell>>,),
 ) -> BinResult<Vec<KeyValue>> {
     Ok(match args.0 {
         None => Vec::new(),
@@ -301,7 +370,7 @@ fn read_values<R: Read + Seek>(
                 }
                 result
             }
-        }
+        },
     })
 }
 

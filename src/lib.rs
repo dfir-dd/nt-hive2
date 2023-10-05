@@ -38,9 +38,12 @@ mod subkeys_list;
 mod cell_with_u8_list;
 mod cell_iterator;
 pub mod transactionlog;
+mod binary_string;
 
 pub use cell::*;
-pub use cell_iterator::{CellIterator, CellLookAhead, CellSelector, CellFilter};
-pub use hive::{Hive, Offset, HiveParseMode, ContainsHive, BaseBlock, CleanHive, DirtyHive, BASEBLOCK_SIZE, HiveWithLogs};
-pub use nk::{KeyNode, KeyNodeWithMagic, SubPath};
-pub use vk::{KeyValue, KeyValueWithMagic, RegistryValue};
+pub use cell_iterator::*;
+pub use hive::*;
+pub use nk::*;
+pub use vk::*;
+pub use util::*;
+pub use binary_string::*;
