@@ -24,7 +24,7 @@ pub struct TransactionLog {
     #[br(try, args(FileType::TransactionLogVariant3,))]
     base_block: Option<HiveBaseBlock>,
 
-    #[br(parse_with=read_log_entries, assert(!log_entries.is_empty()))]
+    #[br(parse_with=read_log_entries)]
     log_entries: Vec<TransactionLogsEntry>
 }
 
