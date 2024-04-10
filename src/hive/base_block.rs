@@ -126,15 +126,13 @@ impl HiveBaseBlock {
         assert!(sequence_number >= self.primary_sequence_number);
         assert!(sequence_number >= self.secondary_sequence_number);
 
-        if self.primary_sequence_number != self.secondary_sequence_number {
-            // patch out the old sequence numbers
-            self.checksum ^= (!self.primary_sequence_number) ^ (!self.secondary_sequence_number);
-        } else {
-            // combining two identical values with XOR yields 0. Combining the remaining 
-            // checksum with 0 is a no-op, so there is nothing to do here
-        }
+        // patch out the old sequence numbers
+        self.checksum ^= (!self.primary_sequence_number) ^ (!self.secondary_sequence_number);
 
         self.primary_sequence_number = sequence_number;
         self.secondary_sequence_number = sequence_number;
+
+        // add the new sequence numbers to the checksum
+        self.checksum ^= (self.primary_sequence_number) ^ (self.secondary_sequence_number);
     }
 }
