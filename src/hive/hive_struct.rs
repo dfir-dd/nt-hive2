@@ -7,6 +7,7 @@ use memoverlay::MemOverlay;
 use std::collections::BTreeMap;
 use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
 use std::marker::PhantomData;
+use std::mem::size_of;
 
 use super::base_block::HiveBaseBlock;
 use super::base_block_raw::HiveBaseBlockRaw;
@@ -116,7 +117,18 @@ where
         Ok(me)
     }
 
-    fn validate_checksum(baseblock_data: &[u8; BASEBLOCK_SIZE]) -> BinResult<()> {
+    pub fn is_checksum_valid(&mut self) -> Option<bool> {
+        if self.base_block().is_some() {
+            self.data.seek(SeekFrom::Start(0)).unwrap();
+            let mut buffer = vec![0; BASEBLOCK_SIZE];
+            self.data.read_exact(&mut buffer[..]).unwrap();
+            Some(Self::validate_checksum(&buffer[0..BASEBLOCK_SIZE]).is_ok())
+        } else {
+            None
+        }
+    }
+
+    pub fn validate_checksum(baseblock_data: &[u8]) -> BinResult<()> {
         let mut cursor = Cursor::new(baseblock_data);
         let _: HiveBaseBlockRaw = match cursor.read_le() {
             Ok(r) => r,
@@ -170,16 +182,23 @@ where
                 BASEBLOCK_SIZE as u32 + reference.offset().0
             );
 
-            if let Err(why) = self.data.add_bytes_at(
-                (BASEBLOCK_SIZE as u32 + reference.offset().0).into(),
-                page,
-            ) {
+            if let Err(why) = self
+                .data
+                .add_bytes_at((BASEBLOCK_SIZE as u32 + reference.offset().0).into(), page)
+            {
                 panic!("unable to apply memory patch: {why}");
             }
         }
 
         if let Some(ref mut base_block) = self.base_block {
+            let checksum_before = *base_block.checksum();
             base_block.set_sequence_number(*log.sequence_number());
+            let checksum_after = *base_block.checksum();
+            println!("updating checksum from {checksum_before:08x} to {checksum_after:08x}");
+            self.data.add_bytes_at(
+                (127 * std::mem::size_of::<u32>()).try_into().unwrap(),
+                base_block.checksum().to_le_bytes(),
+            ).unwrap();
         }
         ApplicationResult::Applied
     }
