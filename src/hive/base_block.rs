@@ -48,7 +48,7 @@ pub struct HiveBaseBlock {
     /// Minor version of a hive writer
     ///
     /// Offset: 0x0018
-    #[br(assert(vec![3, 4, 5, 6].contains(&minor_version)))]
+    #[br(assert([3, 4, 5, 6].contains(&minor_version)))]
     minor_version: u32,
 
     /// 0 means primary file

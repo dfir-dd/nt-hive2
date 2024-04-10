@@ -57,12 +57,15 @@ pub(crate) enum OffsetOrData {
     U32Data(u32),
 
     #[br(pre_assert(u32::has_first_bit_set(&data_size) && without_first_bit(data_size) == 2))]
+    #[allow(dead_code)]
     U16Data(u16, u16),
 
     #[br(pre_assert(u32::has_first_bit_set(&data_size) && without_first_bit(data_size) == 1))]
+    #[allow(dead_code)]
     U8Data(u8, u8, u8, u8),
 
     #[br(pre_assert(u32::has_first_bit_set(&data_size) && without_first_bit(data_size) == 0))]
+    #[allow(dead_code)]
     None(u32),
 
     /// When the most significant bit is 0, data is stored in the Cell data
