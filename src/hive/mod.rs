@@ -2,7 +2,6 @@ mod hive_struct;
 mod hive_parse_mode;
 mod offset;
 mod base_block;
-mod base_block_raw;
 mod file_type;
 mod hive_with_logs;
 mod hive_status;

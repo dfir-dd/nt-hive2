@@ -1,6 +1,10 @@
-use std::{fs::File, path::PathBuf};
+use std::{
+    fs::File,
+    io::{Cursor, Seek},
+    path::PathBuf,
+};
 
-use nt_hive2::{transactionlog::TransactionLog, CleanHive, ContainsHive, Hive, BASEBLOCK_SIZE};
+use nt_hive2::{transactionlog::TransactionLog, ContainsHive, Hive, BASEBLOCK_SIZE};
 
 #[test]
 fn test_cleanhive_plain() {
@@ -17,7 +21,7 @@ fn test_cleanhive_plain() {
     log1_path.push("NewDirtyHive.LOG1");
     log2_path.push("NewDirtyHive.LOG2");
 
-    let mut hive = Hive::new(
+    let hive = Hive::new(
         File::open(&hive_path).unwrap(),
         nt_hive2::HiveParseMode::NormalWithBaseBlock,
     )
@@ -42,7 +46,7 @@ fn test_cleanhive_with_log1() {
     log1_path.push("NewDirtyHive.LOG1");
     log2_path.push("NewDirtyHive.LOG2");
 
-    let mut hive = Hive::new(
+    let hive = Hive::new(
         File::open(&hive_path).unwrap(),
         nt_hive2::HiveParseMode::NormalWithBaseBlock,
     )
@@ -82,8 +86,12 @@ fn test_cleanhive_with_log1_and_log2() {
 
     assert!(hive.is_checksum_valid().unwrap());
 
-    let mut buffer = vec![0; 1024*1024];
+    let mut buffer = Cursor::new(vec![0; BASEBLOCK_SIZE]);
+    hive.write_baseblock(&mut buffer).unwrap();
     std::io::copy(&mut hive, &mut buffer).unwrap();
-    assert!(Hive::<File, CleanHive>::validate_checksum(&buffer[0..BASEBLOCK_SIZE]).is_ok());
-
+    buffer.seek(std::io::SeekFrom::Start(0)).unwrap();
+    let new_hive = Hive::new(buffer, nt_hive2::HiveParseMode::NormalWithBaseBlock)
+        .unwrap()
+        .treat_hive_as_clean();
+    assert!(new_hive.is_checksum_valid().unwrap());
 }

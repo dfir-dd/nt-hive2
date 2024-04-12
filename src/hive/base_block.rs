@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use binread::BinRead;
+use binread::{count, BinRead};
 use binwrite::{write_track::WriteTrack, BinWrite, WriterOption};
 use byteorder::{LittleEndian, WriteBytesExt};
 use derive_getters::Getters;
@@ -11,18 +11,54 @@ use super::FileType;
 
 pub const BASEBLOCK_SIZE: usize = 4096;
 
+#[derive(Default, Debug, Clone)]
+struct CalculatedChecksum(u32);
+
+impl AsRef<u32> for CalculatedChecksum {
+    fn as_ref(&self) -> &u32 {
+        &self.0
+    }
+}
+
+impl BinRead for CalculatedChecksum {
+    type Args = ();
+
+    fn read_options<R: std::io::prelude::Read + std::io::prelude::Seek>(
+        reader: &mut R,
+        options: &binread::ReadOptions,
+        _: Self::Args,
+    ) -> binread::prelude::BinResult<Self> {
+
+        reader.seek(std::io::SeekFrom::End(0))?;
+        reader.seek(std::io::SeekFrom::Start(0))?;
+
+        let data: Vec<u32> = count(127)(reader, options, ())?;
+        
+        let checksum = match data.into_iter().fold(0, |acc, x| acc ^ x) {
+            0xffff_ffff => 0xffff_fffe,
+            0 => 1,
+            sum => sum,
+        };
+        Ok(Self(checksum))
+    }
+}
+
 /// this data structure follows the documentation found at
 /// <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#format-of-primary-files>
 #[allow(dead_code)]
 #[derive(BinRead, Debug, Clone, Default, Getters, BinWrite)]
 #[br(import(expected_file_type: FileType))]
 pub struct HiveBaseBlock {
-    /// magic number. This is not specified as `magic` attribute for BinRead, because this needs to be 
+    #[br(restore_position)]
+    #[binwrite(ignore)]
+    calculated_checksum: CalculatedChecksum,
+
+    /// magic number. This is not specified as `magic` attribute for BinRead, because this needs to be
     /// accessible by BinWrite
-    /// 
+    ///
     /// Offset: 0x0000
     #[br(assert(magic == "regf".as_bytes()))]
-    magic: [u8;4],
+    magic: [u8; 4],
 
     /// This number is incremented by 1 in the beginning of a write operation on the primary file
     ///
@@ -89,6 +125,7 @@ pub struct HiveBaseBlock {
     padding_1: Vec<u32>,
 
     /// XOR-32 checksum of the previous 508 bytes
+    #[br(assert(calculated_checksum.as_ref() == &checksum, "expected checksum of 0x{:08x}, but found 0x{checksum:08x} instead", calculated_checksum.as_ref()))]
     pub checksum: u32,
 
     /// RESERVED, read only if this is not a transaction log file
