@@ -2,14 +2,15 @@ use crate::nk::{KeyNodeFlags, KeyNodeWithMagic};
 use crate::transactionlog::{ApplicationResult, TransactionLogsEntry};
 use crate::{nk::KeyNode, CellIterator};
 use crate::{Cell, CellFilter, CellLookAhead, HiveParseMode, Offset};
+use anyhow::{anyhow, bail};
 use binread::{BinRead, BinReaderExt, BinResult};
+use binwrite::BinWrite;
 use memoverlay::MemOverlay;
 use std::collections::BTreeMap;
-use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
+use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
 
 use super::base_block::HiveBaseBlock;
-use super::base_block_raw::HiveBaseBlockRaw;
 use super::{CleanHive, ContainsHive, DirtyHive, Dissolve, FileType, HiveStatus, BASEBLOCK_SIZE};
 
 pub trait BaseBlock {
@@ -89,8 +90,6 @@ where
                 let mut baseblock_data = [0; BASEBLOCK_SIZE];
                 data.read_exact(&mut baseblock_data)?;
 
-                Self::validate_checksum(&baseblock_data)?;
-
                 /* read baseblock */
                 let mut baseblock_cursor = Cursor::new(baseblock_data);
                 let base_block: HiveBaseBlock = baseblock_cursor
@@ -116,16 +115,39 @@ where
         Ok(me)
     }
 
-    fn validate_checksum(baseblock_data: &[u8; BASEBLOCK_SIZE]) -> BinResult<()> {
-        let mut cursor = Cursor::new(baseblock_data);
-        let _: HiveBaseBlockRaw = match cursor.read_le() {
-            Ok(r) => r,
-            Err(why) => {
-                log::error!("invalid checksum detected");
-                return Err(why);
+    /// write the baseblock to some writer
+    ///
+    /// This method ignores any patches to the base block which might
+    /// be introduced by log files, because the `apply_transaction_log()` method
+    /// takes care of the base block and handles all necessary changes
+    pub fn write_baseblock<W: Write>(&self, writer: &mut W) -> anyhow::Result<()> {
+        match self.base_block() {
+            Some(base_block) => base_block.write(writer).map_err(|why| anyhow!(why)),
+            None => {
+                bail!("this hive has no base block");
             }
-        };
-        Ok(())
+        }
+    }
+
+    pub fn is_checksum_valid(&self) -> Option<bool> {
+        if self.base_block().is_some() {
+            let mut buffer = Cursor::new([0; BASEBLOCK_SIZE]);
+
+            if self.write_baseblock(&mut buffer).is_err() {
+                return Some(false);
+            }
+            buffer.seek(SeekFrom::Start(0)).unwrap();
+
+            match buffer.read_le_args::<HiveBaseBlock>((FileType::HiveFile,)) {
+                Ok(_) => Some(true),
+                Err(why) => {
+                    println!("{why}");
+                    Some(false)
+                }
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -170,10 +192,10 @@ where
                 BASEBLOCK_SIZE as u32 + reference.offset().0
             );
 
-            if let Err(why) = self.data.add_bytes_at(
-                (BASEBLOCK_SIZE as u32 + reference.offset().0).into(),
-                page,
-            ) {
+            if let Err(why) = self
+                .data
+                .add_bytes_at((BASEBLOCK_SIZE as u32 + reference.offset().0).into(), page)
+            {
                 panic!("unable to apply memory patch: {why}");
             }
         }
@@ -299,6 +321,12 @@ where
     }
 }
 
+/// This [`Seek`] implementation hides the base block,
+/// because the offsets used in hive files are relative
+/// to the end of the base block.
+///
+/// If you want to read the base block, don't use `seek()` and `read()`,
+/// but `write_baseblock()` instead
 impl<B> Seek for Hive<B, CleanHive>
 where
     B: BinReaderExt,

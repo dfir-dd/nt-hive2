@@ -38,6 +38,7 @@ impl DirtyPagesReference {
     }
 }
 
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl PartialOrd for DirtyPagesReference {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match self.offset.partial_cmp(&other.offset) {
