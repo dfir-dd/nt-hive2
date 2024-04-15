@@ -1,13 +1,15 @@
+use crate::hive_bin_iterator::HiveBinIterator;
+use crate::hivebin::HiveBin;
+use crate::nk::KeyNode;
 use crate::nk::{KeyNodeFlags, KeyNodeWithMagic};
 use crate::transactionlog::{ApplicationResult, TransactionLogsEntry};
-use crate::{nk::KeyNode, CellIterator};
-use crate::{Cell, CellFilter, CellLookAhead, HiveParseMode, Offset};
+use crate::{Cell, CellLookAhead, HiveParseMode, Offset};
 use anyhow::{anyhow, bail};
 use binread::{BinRead, BinReaderExt, BinResult};
 use binwrite::BinWrite;
 use memoverlay::MemOverlay;
 use std::collections::BTreeMap;
-use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom, Write};
+use std::io::{self, Cursor, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
 
 use super::base_block::HiveBaseBlock;
@@ -284,10 +286,11 @@ where
     }
 
     pub fn find_root_celloffset(self) -> Option<Offset> {
-        let iterator = self
-            .into_cell_iterator(|_| ())
-            .with_filter(CellFilter::AllocatedOnly);
-        for cell in iterator {
+        for cell in self
+            .hivebins()
+            .flat_map(|hb| hb.cells())
+            .filter(|selector| !selector.header().is_deleted())
+        {
             if let CellLookAhead::NK(nk) = cell.content() {
                 if nk.flags.contains(KeyNodeFlags::KEY_HIVE_ENTRY) {
                     return Some(*cell.offset());
@@ -297,11 +300,14 @@ where
         None
     }
 
-    pub fn into_cell_iterator<C>(self, callback: C) -> CellIterator<B, C>
-    where
-        C: Fn(u64),
-    {
-        CellIterator::new(self, callback)
+    pub fn reset_cursor(&mut self) -> io::Result<()> {
+        self.data
+            .seek(SeekFrom::Start(BASEBLOCK_SIZE.try_into().unwrap()))?;
+        Ok(())
+    }
+
+    pub fn hivebins(self) -> impl Iterator<Item = HiveBin<B>> {
+        HiveBinIterator::from(self)
     }
 
     pub fn data_size(&self) -> u32 {

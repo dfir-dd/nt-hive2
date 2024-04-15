@@ -28,12 +28,11 @@ impl BinRead for CalculatedChecksum {
         options: &binread::ReadOptions,
         _: Self::Args,
     ) -> binread::prelude::BinResult<Self> {
-
         reader.seek(std::io::SeekFrom::End(0))?;
         reader.seek(std::io::SeekFrom::Start(0))?;
 
         let data: Vec<u32> = count(127)(reader, options, ())?;
-        
+
         let checksum = match data.into_iter().fold(0, |acc, x| acc ^ x) {
             0xffff_ffff => 0xffff_fffe,
             0 => 1,

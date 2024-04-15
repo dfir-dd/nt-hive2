@@ -1,6 +1,6 @@
+use std::any::Any;
 
-use binread::{BinRead, derive_binread};
-use std::{any::Any};
+use binread::{derive_binread, BinRead};
 
 #[allow(unused_imports)]
 use crate::*;
@@ -19,12 +19,12 @@ pub struct CellHeader {
     size: usize,
 
     #[br(calc(raw_size > 0))]
-    is_deleted: bool
+    is_deleted: bool,
 }
 
 impl CellHeader {
-    /// Returns the size of the header.
-    /// 
+    /// Returns the size of this cell, including the header.
+    ///
     /// This is *not* the stored size value, but the *absolute* value of it.
     pub fn size(&self) -> usize {
         self.size
@@ -38,7 +38,7 @@ impl CellHeader {
     }
 
     /// returns [true] iff the [Cell] is considered as being *deleted*
-    /// 
+    ///
     pub fn is_deleted(&self) -> bool {
         self.is_deleted
     }
@@ -46,23 +46,23 @@ impl CellHeader {
 
 /// A [Cell] represents the most basic data structure of hive files.
 /// Nearly every other data is stored as content of a [Cell].
-/// 
+///
 /// As [Cell] is a generic, it receives two generic arguments:
 ///  - `T` denotes the type contained in the [Cell]
 ///  - `A` specifies the arguments required by [binread] to correctly parse an object of type `T`
-/// 
+///
 /// # Usage
 /// If you know what kind of data should be stored in a certain [Cell],
 /// you can simply read it. Assume you have [Cell] which should contain
 /// a [`KeyNode`](struct@KeyNode), you can read it as follows:
-/// 
+///
 /// ```
 /// # use std::error::Error;
 /// # use std::fs::File;
 /// use nt_hive2::*;
 /// use std::io::{Seek, SeekFrom};
 /// use binread::BinReaderExt;
-/// 
+///
 /// # fn main() -> Result<(), Box<dyn Error>> {
 /// # let hive_file = File::open("tests/data/testhive")?;
 /// # let mut hive = Hive::new(hive_file, HiveParseMode::NormalWithBaseBlock)?;
@@ -76,25 +76,29 @@ impl CellHeader {
 /// # Ok(())
 /// # }
 /// ```
-/// 
+///
 /// For conveniance reasons, [Hive] already presents the method [read_structure](Hive::read_structure),
 /// which does basically the same.
-/// 
+///
 #[derive(BinRead, Eq, PartialEq)]
 #[br(import_tuple(data_args: A))]
 pub struct Cell<T, A: Any + Copy>
 where
-    T: BinRead<Args=A>, {
-    
+    T: BinRead<Args = A>,
+{
     header: CellHeader,
 
     #[br(args_tuple(data_args))]
     data: T,
 }
 
-impl<T, A> Cell<T, A> where T: BinRead<Args=A>, A: Any + Copy {
+impl<T, A> Cell<T, A>
+where
+    T: BinRead<Args = A>,
+    A: Any + Copy,
+{
     /// returns [true] iff the [Cell] is considered as being *deleted*
-    /// 
+    ///
     pub fn is_deleted(&self) -> bool {
         self.header.is_deleted
     }
@@ -102,9 +106,9 @@ impl<T, A> Cell<T, A> where T: BinRead<Args=A>, A: Any + Copy {
     /// returns [true] iff the [Cell] is considered as being *allocated*.
     /// This is a conveniance function which simply calls [is_deleted](Self::is_deleted)
     /// and negates the result.
-    /// 
+    ///
     pub fn is_allocated(&self) -> bool {
-        ! self.is_deleted()
+        !self.is_deleted()
     }
 
     /// returns a reference to the contained data structure
