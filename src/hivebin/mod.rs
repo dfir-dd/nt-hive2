@@ -3,7 +3,7 @@ mod cell_iterator;
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 pub use cell_iterator::*;
 
-use binread::{derive_binread, BinReaderExt};
+use binread::{derive_binread, BinReaderExt, BinResult};
 use getset::Getters;
 
 use crate::{CleanHive, Hive, Offset};
@@ -19,6 +19,7 @@ pub struct _HiveBin {
     offset: Offset,
 
     // Size of a current hive bin in bytes
+    #[br(assert(size & 0xfff == 0, "hivebins must be alligned at 4k boundaries"))]
     size: u32,
 
     reserved: u64,
@@ -49,7 +50,7 @@ impl<B> HiveBin<B>
 where
     B: BinReaderExt,
 {
-    pub fn new(hive: Rc<RefCell<Hive<B, CleanHive>>>) -> anyhow::Result<Self> {
+    pub fn new(hive: Rc<RefCell<Hive<B, CleanHive>>>) -> BinResult<Self> {
         let hivebin = hive.borrow_mut().read_le()?;
         Ok(Self { hive, hivebin })
     }

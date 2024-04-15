@@ -1,5 +1,6 @@
 mod base_block;
 mod file_type;
+mod hive_bin_iterator;
 mod hive_parse_mode;
 mod hive_status;
 mod hive_with_logs;
@@ -7,12 +8,12 @@ mod offset;
 
 pub use base_block::*;
 pub use file_type::*;
+pub(crate) use hive_bin_iterator::*;
 pub use hive_parse_mode::*;
 pub use hive_status::*;
 pub use hive_with_logs::*;
 pub use offset::*;
 
-use crate::hive_bin_iterator::HiveBinIterator;
 use crate::hivebin::{CellLookAhead, HiveBin};
 use crate::nk::KeyNode;
 use crate::nk::{KeyNodeFlags, KeyNodeWithMagic};
@@ -326,8 +327,8 @@ where
 
     pub fn data_size(&self) -> u32 {
         match &self.base_block {
-            None => todo!(),
-            Some(base_block) => *base_block.data_size(),
+            None => panic!("this hive file has no base block"),
+            Some(base_block) => *base_block.data_size() - BASEBLOCK_SIZE as u32,
         }
     }
 }

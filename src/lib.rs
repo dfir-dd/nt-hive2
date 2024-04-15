@@ -29,7 +29,6 @@
 //! ```
 mod hive;
 mod hivebin;
-mod hive_bin_iterator;
 mod util;
 mod cell;
 mod nk;
