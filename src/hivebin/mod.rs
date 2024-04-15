@@ -1,9 +1,12 @@
+mod cell_iterator;
+
 use std::{cell::RefCell, ops::Deref, rc::Rc};
+pub use cell_iterator::*;
 
 use binread::{derive_binread, BinReaderExt};
 use getset::Getters;
 
-use crate::{CellIterator, CleanHive, Hive, Offset};
+use crate::{CleanHive, Hive, Offset};
 
 #[derive_binread]
 #[derive(Getters)]
@@ -51,7 +54,7 @@ where
         Ok(Self { hive, hivebin })
     }
 
-    pub fn cells(&self) -> impl Iterator<Item = crate::CellSelector> {
+    pub fn cells(&self) -> impl Iterator<Item = CellSelector> {
         CellIterator::new(self, Rc::clone(&self.hive))
     }
 

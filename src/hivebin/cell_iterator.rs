@@ -130,6 +130,8 @@ pub enum CellLookAhead {
         #[br(count=count)]
         items: Vec<IndexRootListElement>,
     },
+    
+    #[allow(clippy::upper_case_acronyms)]
     UNKNOWN,
 }
 
