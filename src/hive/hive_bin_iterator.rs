@@ -62,8 +62,10 @@ where
             match HiveBin::new(Rc::clone(&self.hive)) {
                 Ok(hivebin) => {
                     self.expected_end = current_start + *hivebin.size() as u64;
-                    assert_eq!(self.expected_end & 0xfff, 0, "hivebins must be alligned at 4k boundaries");
+                    assert_eq!(self.expected_end & 0xfff, 0, "hivebins must be aligned at 4k boundaries");
     
+                    log::trace!("found new hivebin at 0x{current_start:08x} with length {}, ending at 0x{:08x}",
+                        hivebin.size(), self.expected_end);
                     return Some(hivebin)
                 }
                 Err(why) => {

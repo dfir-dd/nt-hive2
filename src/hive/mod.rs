@@ -14,7 +14,7 @@ pub use hive_status::*;
 pub use hive_with_logs::*;
 pub use offset::*;
 
-use crate::hivebin::{CellLookAhead, HiveBin};
+use crate::hivebin::{CellContent, HiveBin};
 use crate::nk::KeyNode;
 use crate::nk::{KeyNodeFlags, KeyNodeWithMagic};
 use crate::transactionlog::{ApplicationResult, TransactionLogsEntry};
@@ -306,7 +306,7 @@ where
             .flat_map(|hb| hb.cells())
             .filter(|selector| !selector.header().is_deleted())
         {
-            if let CellLookAhead::NK(nk) = cell.content() {
+            if let CellContent::NK(nk) = cell.content() {
                 if nk.flags.contains(KeyNodeFlags::KEY_HIVE_ENTRY) {
                     return Some(*cell.offset());
                 }

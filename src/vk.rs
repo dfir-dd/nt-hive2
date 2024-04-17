@@ -17,7 +17,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 
-#[derive(BinRead, Eq, PartialEq)]
+#[derive(BinRead, Eq, PartialEq, Debug)]
 #[br(import(count: usize))]
 pub struct KeyValueList {
     #[br(count=count)]
@@ -47,7 +47,7 @@ bitflags! {
     }
 }
 
-#[derive(BinRead)]
+#[derive(BinRead, Debug)]
 #[br(import(data_size: u32))]
 pub(crate) enum OffsetOrData {
     /// When the most significant bit is 1, data (4 bytes or less) is stored in
@@ -84,6 +84,7 @@ pub struct KeyValueWithMagic(KeyValue);
 /// 
 #[derive_binread]
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct KeyValue {
     name_length: u16,
 
@@ -190,7 +191,7 @@ fn parse_registry_value<R: Read + Seek>(
 
 /// Possible data types of the data belonging to a [`KeyValue`].
 /// https://docs.microsoft.com/en-us/windows/win32/sysinfo/registry-value-types
-#[derive(BinRead)]
+#[derive(BinRead, Debug)]
 #[br(repr=u32)]
 pub enum KeyValueDataType {
     /// Data with no particular type
@@ -254,6 +255,7 @@ impl Display for KeyValueDataType {
     }
 }
 
+#[derive(Debug)]
 pub enum RegistryValue {
     RegNone,
     RegUnknown,

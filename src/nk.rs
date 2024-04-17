@@ -32,6 +32,7 @@ pub struct KeyNodeWithMagic(KeyNode);
 /// represents a registry key node (as documented in <https://github.com/msuhanov/regf/blob/master/Windows%20registry%20file%20format%20specification.md#key-node>)
 #[allow(dead_code)]
 #[derive_binread]
+#[derive(Debug)]
 pub struct KeyNode {
     #[br(parse_with=parse_node_flags)]
     pub(crate) flags: KeyNodeFlags,
@@ -95,6 +96,7 @@ pub struct KeyNode {
 
     #[br(   if(key_values_count > 0 && key_values_list_offset != u32::MAX),
             parse_with=read_values,
+            restore_position,
             args(key_values_list.as_ref(), ))]
     values: Vec<KeyValue>,
 

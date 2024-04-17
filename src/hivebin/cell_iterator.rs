@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::io::{ErrorKind, Seek};
 use std::rc::Rc;
 
@@ -27,23 +28,38 @@ where
         Self {
             hive,
             hivebin_size: (*hivebin.size()).try_into().unwrap(),
+
+            // we assume that we already consumed the header
             consumed_bytes: hivebin.header_size().into(),
         }
     }
 
-    fn parse<T: BinRead>(&self) -> Option<T> {
-        let r: BinResult<T> = self.hive.borrow_mut().read_le();
-        match r {
-            Ok(t) => Some(t),
-            Err(why) => {
-                if let binread::Error::Io(kind) = &why {
-                    if kind.kind() != ErrorKind::UnexpectedEof {
-                        log::warn!("parser error: {}", why);
-                    }
-                }
-                None
-            }
+    fn next_cell(&mut self) -> BinResult<Option<CellSelector>> {
+        const CELL_HEADER_SIZE: usize = 4;
+
+        // if there is not enough space in this hivebin, give up
+        if self.consumed_bytes + CELL_HEADER_SIZE >= self.hivebin_size {
+            return Ok(None);
         }
+
+        let cell_offset = self.hive.borrow_mut().stream_position().unwrap();
+
+        let header: CellHeader = self.hive.borrow_mut().read_le()?;
+
+        let cell_size = header.size();
+        let content: CellContent = self.hive.borrow_mut().read_le()?;
+        self.consumed_bytes += cell_size;
+
+        let cell_selector = CellSelector {
+            offset: Offset(cell_offset.try_into().unwrap()),
+            header,
+            content,
+        };
+        self.hive.borrow_mut().seek(std::io::SeekFrom::Start(
+            cell_offset + u64::try_from(cell_size).unwrap(),
+        ))?;
+
+        Ok(Some(cell_selector))
     }
 }
 
@@ -54,27 +70,19 @@ where
     type Item = CellSelector;
 
     fn next(&mut self) -> Option<Self::Item> {
-        const CELL_HEADER_SIZE: usize = 4;
-
-        // if there is not enough space in this hivebin, give up
-        if self.consumed_bytes + CELL_HEADER_SIZE >= self.hivebin_size {
-            return None;
-        }
-
-        let cell_offset = self.hive.borrow_mut().stream_position().unwrap();
-
-        if let Some(header) = self.parse::<CellHeader>() {
-            if let Some(lookahead) = self.parse::<CellLookAhead>() {
-                self.consumed_bytes += header.size();
-                return Some(CellSelector {
-                    offset: Offset(cell_offset.try_into().unwrap()),
-                    header,
-                    content: lookahead,
-                });
+        match self.next_cell() {
+            Ok(v) => v,
+            Err(why) => {
+                if let binread::Error::Io(kind) = &why {
+                    if kind.kind() != ErrorKind::UnexpectedEof {
+                        log::warn!("parser error: {}", why);
+                    }
+                } else {
+                    log::warn!("parser error: {}", why);
+                }
+                None
             }
         }
-
-        None
     }
 }
 
@@ -83,11 +91,12 @@ where
 pub struct CellSelector {
     offset: Offset,
     header: CellHeader,
-    content: CellLookAhead,
+    content: CellContent,
 }
 
 #[derive_binread]
-pub enum CellLookAhead {
+#[derive(Debug)]
+pub enum CellContent {
     #[br(magic = b"nk")]
     NK(KeyNode),
     #[br(magic = b"vk")]
@@ -130,7 +139,7 @@ pub enum CellLookAhead {
         #[br(count=count)]
         items: Vec<IndexRootListElement>,
     },
-    
+
     #[allow(clippy::upper_case_acronyms)]
     UNKNOWN,
 }
@@ -143,7 +152,7 @@ pub enum CellLookAheadConversionError {
     DifferentCellTypeExpected,
 }
 
-impl CellLookAhead {
+impl CellContent {
     pub fn is_nk(&self) -> bool {
         matches!(self, Self::NK(_))
     }
@@ -154,7 +163,7 @@ impl TryInto<KeyNode> for CellSelector {
 
     fn try_into(self) -> Result<KeyNode, Self::Error> {
         match self.content {
-            CellLookAhead::NK(nk) => Ok(nk),
+            CellContent::NK(nk) => Ok(nk),
             _ => Err(CellLookAheadConversionError::DifferentCellTypeExpected),
         }
     }
