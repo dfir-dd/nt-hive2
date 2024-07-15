@@ -1,6 +1,6 @@
 [package]
 name = "nt_hive2"
-version = "4.2.1"
+version = "4.2.2"
 edition = "2021"
 authors = ["Jan Starke <jan.starke@posteo.de>", "Muteb Alqahtani <muteb@securitycolumns.com>"]
 license = "GPL-3.0"
@@ -16,7 +16,7 @@ binread = "2.2"
 binwrite = "0.2"
 bitflags = "1.3"
 encoding_rs = "0.8"
-log = {version = "0.4", features = [ "release_max_level_info" ]}
+log = "0.4"
 chrono = "0.4"
 winstructs = "0.3.0"
 anyhow = "1.0"
