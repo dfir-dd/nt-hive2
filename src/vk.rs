@@ -281,7 +281,11 @@ impl Display for RegistryValue {
             RegistryValue::RegSZ(val) => write!(f, "{val:?}"),
             RegistryValue::RegExpandSZ(val) => write!(f, "{val:?}"),
             RegistryValue::RegBinary(val) => {
-                write!(f, "{:?}", if val.len() > 16 { &val[..16] } else { val })
+                if let Some(width) = f.width() {
+                    write!(f, "{:?}", if val.len() > width { &val[..width] } else { val })
+                } else {
+                    write!(f, "{val:?}")
+                }
             }
             RegistryValue::RegDWord(val) => write!(f, "0x{:08x}", val),
             RegistryValue::RegDWordBigEndian(val) => write!(f, "0x{:08x}", val),
