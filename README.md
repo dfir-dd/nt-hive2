@@ -1,4 +1,4 @@
-> [!CAUTON]
+> [!CAUTION]
 > # `nt_hive2` is leaving github
 > 
 > ## Why?
